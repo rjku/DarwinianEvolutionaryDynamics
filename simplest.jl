@@ -126,4 +126,4 @@ function main()#::Int8
 	# return plot(collect(1:NGEN),μ)
 end
 
-# main()
+main()
