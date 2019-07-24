@@ -1,32 +1,39 @@
 
 using Random, Plots
 
-const L = 20
+const SYSTEMSIZE = 40
 
 # the (initial) state vector
-n = rand([-1,1], L, L)
-Jij = randn(2*L^2)
 
-show(Jij)
+# n = rand([-1,1], L, L)
 
-function ising2d(state::Array{Int64,2}, systemSize::Int64, interactionMatrix::Array{Float64,1})
-	β::Float64 = 1/4 # critical inverse temperature = 1/2.3
-	Nsteps::Int64 = 100000
-	L2::Int64 = systemSize^2
-	L3::Int64 = systemSize^3
+# the (initial) interaction matrix
+# Jij = randn(2*L^2)
+interactionmatrix = ones(Float64,2*SYSTEMSIZE^2)
+
+# ising 2d function simulator ( state n, system size L, interaction matrix Jij)
+function ising2d(L::Int64, Jij::Array{Float64,1}) #n::Array{Int64,2},
+	n = ones(Int64, L, L)
+
+	β::Float64 = 1. # critical inverse temperature = 1/2.3
+	Nsteps::Int64 = 1000
+	L2::Int64 = L^2
+	L3::Int64 = L^3
 	Γ = zeros(Int64,2)
 
-	𝕁::Array{Float64,1} = interactionMatrix*β
+	𝕁::Array{Float64,1} = Jij*β
+
+	# magnetization vector
 	m = zeros(Float64, Nsteps)
 
 	# useful nearest neighbour coordinate vectors
-	Γp = collect(Int8, 2:L);	sizehint!(Γp,L); 	Γp = push!(Γp,1)
-	Γm = collect(Int8, 1:L-1);	sizehint!(Γm,L); 	Γm = pushfirst!(Γm,L)
+	Γp = collect(Int16, 2:L);	sizehint!(Γp,L); 	Γp = push!(Γp,1)
+	Γm = collect(Int16, 1:L-1);	sizehint!(Γm,L); 	Γm = pushfirst!(Γm,L)
 
 	for n1 in 1:Nsteps
 		for n2 in 1:L3
 			i, j = rand(collect(1:L)), rand(collect(1:L))
-			if rand() < .5 ( 1. - state[i,j]*tanh( 𝕁[i+2(j-1)*systemSize]*n[Γp[i],j] + 𝕁[Γm[i]+2(j-1)*systemSize]*n[Γm[i],j] + 𝕁[i+(2j-1)*systemSize]*n[i,Γp[j]] + 𝕁[i+(2Γm[j]-1)*systemSize]*n[i,Γm[j]] ) )
+			if rand() < ( 1. - n[i,j]*tanh( 𝕁[i+2(j-1)*L]*n[Γp[i],j] + 𝕁[Γm[i]+2(j-1)*L]*n[Γm[i],j] + 𝕁[i+(2j-1)*L]*n[i,Γp[j]] + 𝕁[i+(2*Γm[j]-1)*L]*n[i,Γm[j]] ) )/2
 				n[i,j] = - n[i,j]
 			end
 		end
@@ -37,6 +44,6 @@ function ising2d(state::Array{Int64,2}, systemSize::Int64, interactionMatrix::Ar
 	return plot(collect(1:Nsteps), m)
 end
 
-@time ising2d(n,L,Jij)
+@time ising2d(SYSTEMSIZE,interactionmatrix)
 
-println(n)
+# Juno.@run ising2d(SYSTEMSIZE,interactionmatrix)
