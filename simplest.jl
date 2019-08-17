@@ -1,10 +1,12 @@
 
-using Random, Distances, Plots, Base.Threads
+using Random, Distances, Plots, Base.Threads, isingFunc
 import Future
 
 const NGEN, NPOP, DGTY = 1000, 1000, 2
 const REPRATE, MUTRATE = 10., 0.5
 const FITNESSOFFSET, DELTATOFFSET =  1.0, 1.0
+
+const SYSTEMSIZE = 30
 
 # fitness function
 fitness(gty::Array{Float64,1}, Dgty::Int64)::Float64 = 1/(euclidean(gty,ones(Float64,Dgty))+FITNESSOFFSET)
