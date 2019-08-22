@@ -1,43 +1,106 @@
 
-module mIsingEvolution
-using mAbstractTypes, mEvolution, Random, PyPlot
+module mEvoFunc
+using mEvoTypes, Random, Base.Threads, Distances
+import Future
 
-export tIsingSigTransEty, tCompEnv, tVecGty, metropolis, fitness
 
-# ===================
-# type: ising signal transduction
-struct tIsingSigTransEty <: atEvotype
-	L::Int32				# system size
-	lJij::Int32				# interaction matrix number of entries
+# *******************
+# PROPER EVOLUTIONARY FUNCTIONS
+# *******************
 
-	β::Float64 				# inverse temperature [ critical inverse temperature ≃ 1/2.3 ≃ 0.43 ]
-	he::Float64 			# global external field H
+# replication function: ( living population, replication factor, Marsenne Twister ) → replicated population
+function replication!(pop::tLivingPop,R::Vector{MersenneTwister})
+	G = zeros(Int32,pop.pN[2])
+	@threads for i in 1:pop.pN[2]
+		Kr::Float64 = pop.repFactor*pop.aGty[i].pF[1]
+		ipKr::Int32 = trunc(Int32,Kr)
 
-	L2::Int32;	halfL::Int32
-	li::Int32;	li2::Int32			# input/redout region size set to one tenth of the system size
-	ℍe::Float64
+		G[i] = rand(R[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr
+		# G::Int64 = rand() < Kr - ipKr ? ipKr + 1 : ipKr
+	end
 
-	# definition: useful nearest neighbour coordinate vectors
-	jp::Array{Int32,1}; jm::Array{Int32,1}
-	Jpi::Array{Int32,2}; Jmi::Array{Int32,2}; Jpj::Array{Int32,2}; Jmj::Array{Int32,2}
+	for i in 1:pop.pN[2]
+		for inew in 1:G[i]
+			pop.pN[1] += 1
+			if pop.pN[1] <= pop.pN[3]
+				pop.aGty[pop.pN[1]] = deepcopy(pop.aGty[i])
+			else
+				pop.pN[3] += 1
+				push!(pop.aGty,pop.aGty[i])
+			end
+		end
+	end
 end
 
-# constructor: ising signal transduction
-tIsingSigTransEty(L::Int32, β::Real, he::Real) = tIsingSigTransEty(
-	L, 2L^2, β, he, L^2, L÷2, L÷10, (L÷10)^2, he*β,
-	Int32[i%L+1 for i in 1:L],
-	Int32[(L-2+i)%L+1 for i in 1:L],
-	Int32[i+2(j-1)*L for i in 1:L, j in 1:L],
-	Int32[(L-2+i)%L+1+2(j-1)*L for i in 1:L, j in 1:L],
-	Int32[i+(2j-1)*L for i in 1:L, j in 1:L],
-	Int32[i+(2(L-2+j)%L+1)*L for i in 1:L, j in 1:L]
-)
+# effective selection function: ( population, MT ) → selected population
+function effSelection!(pop::tLivingPop; ubermode::Bool=false)
+	growthFactor::Float64 = log(pop.pN[1]/pop.pN[2])
+	popGtyRef::Array{atGenotype,1} = deepcopy(pop.aGty)
+
+	if ubermode
+		# survival of the fittest
+		survivedGty = sortperm([pop.aGty[i].pF[1] for i in 1:pop.pN[1]],rev=true)
+	else
+		# selection with replacement of individuals
+		survivedGty = rand(collect(1:pop.pN[1]),pop.pN[2])
+	end
+	for i in 1:pop.pN[2]
+		pop.aGty[i] = popGtyRef[survivedGty[i]]		# error?
+	end
+
+	# population size renormalization
+	pop.pN[1] = pop.pN[2]
+
+	return growthFactor
+end
+
+# effective mutation function: ( population, variation, fitness!Function acting on genotypes, MT )
+function effMutation!(pop::tLivingPop, R::Vector{MersenneTwister})
+	@threads for i in 1:pop.pN[1]
+		r1::Float64 = rand(R[threadid()])
+		cumProb::Float64 = 0.
+		xvar::Int32 = -1
+
+		effMutProb::Float64 = pop.mutFactor/(1+pop.repFactor*pop.aGty[i].pF[1])
+
+		while cumProb < r1 && xvar < 2pop.aGty[i].pdX[1]
+			xvar += 1
+			cumProb += effMutProb
+		end
+		if xvar < 2pop.aGty[i].pdX[1]
+			pop.aGty[i].X[xvar%pop.aGty[i].pdX[1]+1] += xvar < pop.aGty[i].pdX[1] ? pop.Xvar : -pop.Xvar
+			fitness!(pop.ety,pop.env,pop.aGty[i])
+		end
+	end
+end
+
+
+# evolution function: ( population, evolutionary dynamics data )
+function evolution!(pop::tLivingPop, evo::tEvoData)#::Int8
+	R = let m = MersenneTwister(1)
+	        [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
+	    end;
+
+	for gen in 1:evo.Ngen
+		replication!(pop,R)
+		effMutation!(pop,R)
+		evo.growthFactor[gen] = effSelection!(pop,ubermode=true)
+		evo.aveFitness[gen] = sum([pop.aGty[i].pF[1] for i in 1:pop.pN[2]])/pop.pN[2]
+	end
+end
+
+export replication!, effMutation!, effSelection!, evolution!
+
+
+# *******************
+# ISING
+# *******************
 
 # ===================
 # MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation
 # 	( tIsingST isingST, interaction matrix Jij, input field h ) → readout magnetization m
 function metropolis(isingST::tIsingSigTransEty, Jij::Array{T,1}, hi::Real)::Real where {T<:Real}
-	Nmcs::Int32 =  50*isingST.L2		# number of Monte Carlo steps
+	Nmcs::Int32 =  50isingST.L2		# number of Monte Carlo steps
 	Nsamplings::Int16 = 20				# number of samplings points
 	𝕁::Array{Float64,1} = Jij*isingST.β;	ℍi::Float64 = hi*isingST.β
 
@@ -85,7 +148,7 @@ end
 # 	( tIsingST isingST, state n, interaction matrix Jij, input field h ) → readout magnetization m
 function metropolis(isingST::tIsingSigTransEty, n::Array{T1,2}, Jij::Array{T2,1}, hi::Real)::Real where
 		{T1<:Integer,T2<:Real}
-	Nmcs::Int32 =  50*isingST.L2		# number of Monte Carlo steps
+	Nmcs::Int32 =  50isingST.L2		# number of Monte Carlo steps
 	Nsamplings::Int16 = 20				# number of samplings points
 	𝕁::Array{Float64,1} = Jij*isingST.β;	ℍi::Float64 = hi*isingST.β
 
@@ -130,7 +193,7 @@ end
 # 	( tIsingST isingST, state n, interaction matrix Jij, input field h ) → readout magnetization m
 function metropolis(isingST::tIsingSigTransEty, n::Array{T1,2}, Jij::Array{T2,1}, hi::Real, aves::Array{T3,2}) where
 		{T1<:Integer,T2<:Real,T3<:Real}
-	Nmcs::Int32 =  50*isingST.L2		# number of Monte Carlo steps
+	Nmcs::Int32 =  50isingST.L2		# number of Monte Carlo steps
 	Nsamplings::Int16 = 20				# number of samplings points
 	𝕁::Array{Float64,1} = Jij*isingST.β;	ℍi::Float64 = hi*isingST.β
 
@@ -187,13 +250,41 @@ function fitness!(isingST::tIsingSigTransEty, isingSTenv::tCompEnv{<:Real}, gty:
 	for iio in isingSTenv.idealInputOutput
 		invf += ( metropolis(isingST, gty.X, iio[1]) - iio[2] )^2
 	end
-	gty.F[1] = 1/(sqrt(invf)+0.1)	# fitness offset = 0.1
+	gty.pF[1] = 1/(sqrt(invf)+0.1)	# fitness offset = 0.1
 end
 
 # constructor of tLivingPop based on ising fitness
-function tLivingPop{T}(N::Int32,ety::tIsingSigTransEty,env::atEnv,aGty::Array{<:atGenotype{T},1}) where {T}
+# function tLivingPop{T}( N::Int32,ety::tIsingSigTransEty,env::atEnv,aGty::Array{<:atGenotype{T},1},
+# 	repFactor::Float64,mutFactor::Float64,Xvar::T,ΔtOffset::Float64 ) where {T}
+# 	for i in 1:N fitness!(ety,env,aGty[i]) end
+# 	tLivingPop{T}( Int32[N,N,length(aGty)],ety,env,aGty )
+# end
+
+# simplified constructor for discrete time evolution
+function tLivingPop{T}( N::Int32,ety::atEvotype,env::atEnv,aGty::Array{<:atGenotype{T},1},
+		repFactor::Float64,mutFactor::Float64,Xvar::T,ΔtOffset::Float64 ) where {T}
 	for i in 1:N fitness!(ety,env,aGty[i]) end
-	tLivingPop{T}( Int32[N,N,length(aGty)],ety,env,aGty )
+
+	tLivingPop{T}( Int32[N,N,length(aGty)],ety,env,aGty,
+	repFactor/(2maximum([aGty[i].pdX[1] for i in 1:N])*mutFactor+ΔtOffset),
+	mutFactor/(2maximum([aGty[i].pdX[1] for i in 1:N])*mutFactor+ΔtOffset),
+	Xvar )
 end
+
+export metropolis, fitness, fitness!, tLivingPop
+
+
+# *******************
+# TRIVIAL
+# *******************
+
+struct tTrivialEty <: atEvotype end
+struct tTrivialEnv <: atEnv end
+
+function fitness!(trivialEty::tTrivialEty,trivialEnv::tTrivialEnv,gty::at1dGty{<:Real})
+	gty.pF[1]=1/(euclidean(gty.X,ones(Float64,gty.pdX[1]))+1.)
+end
+
+export tTrivialEty, tTrivialEnv, fitness!
 
 end
