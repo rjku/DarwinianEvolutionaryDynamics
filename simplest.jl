@@ -1,12 +1,12 @@
 
-using Random, Distances, Plots, Base.Threads
+using Random, Distances, PyPlot, Base.Threads
 import Future
 
-const NGEN, NPOP, DGTY = 1000, 1000, 2
-const REPRATE, MUTRATE = 10., 0.5
-const FITNESSOFFSET, DELTATOFFSET =  1.0, 1.0
+const NGEN, NPOP, DGTY = 2000, 50, 2(30^2)
+const REPRATE, MUTRATE = 100000., .01
+const DELTAX, FITNESSOFFSET, DELTATOFFSET =  .01, .01, 1.0
 
-const SYSTEMSIZE = 30
+# const SYSTEMSIZE = 30
 
 # fitness function
 fitness(gty::Array{Float64,1}, Dgty::Int64)::Float64 = 1/(euclidean(gty,ones(Float64,Dgty))+FITNESSOFFSET)
@@ -42,7 +42,7 @@ end
 # mutation function: ( genotype, fitness, dimension genotypic space ) → mutated genotype
 function effMutation!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float64,1}, pNpopGty::Array{Int64,1},
 		Dgty::Int64, repFactor::Float64, mutProb::Float64, R::Vector{MersenneTwister})
-	Δx::Float32 = .01
+	Δx::Float32 = DELTAX
 
 	@threads for i in 1:pNpopGty[1]
 		r1::Float32 = rand(R[threadid()])
@@ -128,7 +128,7 @@ function main()#::Int8
 	# println(𝕏[1:pNpop[1]])
 
 	# pyplot() # Switch to using the PyPlot.jl backend
-	# return plot(collect(1:NGEN),ϕ)
+	plot(collect(1:NGEN),ϕ); gcf()
 	# return plot(collect(1:NGEN),μ)
 end
 

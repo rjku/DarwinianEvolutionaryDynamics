@@ -10,23 +10,27 @@ module mEvoTypes
 abstract type atSystem end
 abstract type atThermoSystem <: atSystem end
 
-export atSystem, atThermoSystem
+abstract type atMonteCarloPrm end
+
+export atSystem, atThermoSystem, atMonteCarloPrm
 
 # ===================
 # environment types
-abstract type atEnv end
-abstract type atCompEnv{T} <: atEnv end		# computational: input--ideal-output | T relates to the representation ...
+abstract type atEnvironment end
 
-export atEnv, atCompEnv
+# computational: input--ideal-output | T relates to the representation ...
+abstract type atCompEnv{T} <: atEnvironment end
+
+export atEnvironment, atCompEnv
 
 # ===================
 # population dynamics types
 abstract type atPopulation end
 abstract type atEvotype end
-abstract type atGenotype{T} end			# T relates to the representation of the genotypic variables
+abstract type atGenotype end			# T relates to the representation of the genotypic variables
 abstract type atPhenotype{T} end		# T relates to the representation of the phenotypic variables
 
-abstract type at1dGty{T} <: atGenotype{T} end
+abstract type at1dGty <: atGenotype end
 
 export atPopulation, atEvotype, atGenotype, atPhenotype, at1dGty
 
@@ -36,26 +40,40 @@ export atPopulation, atEvotype, atGenotype, atPhenotype, at1dGty
 # *******************
 
 # ===================
+# type: simulation parameters
+struct tDTMCprm <: atMonteCarloPrm
+	Nsmpl::Int32							# number of Samples
+	Nmcsps::Int32							# number of Monte Carlo Steps per Sample
+end
+
+export tDTMCprm
+
+# ===================
 # type: computational environment
-struct tCompEnv{T} <: atCompEnv{T}
-	idealInputOutput::Array{Array{T},1}
+# struct tCompEnv{T} <: atCompEnv{T}
+# 	idealInputOutput::Array{Array{T},1}
+# 	selFactor::Float64
+# end
+# to improve:
+struct tCompEnv{T<:AbstractArray} <: atCompEnv{T}
+	idealInputOutput::Array{T,1}
+	selFactor::Float64
 end
 
 # ===================
 # type: trivial environment
-struct tTrivialEnv{T} <: atCompEnv{T} end
+struct tTrivialEnv <: atEnvironment end
 
 # ===================
 # type: vectorial genotype
-struct tVecGty{T} <: at1dGty{T}
-	X::Array{T,1}
+struct tVecGty{T<:AbstractVector} <: at1dGty
+	X::T
 	pF::Array{Float64,1}
 	pdX::Array{Int32,1}
 end
 
 # constructor: undefined fitness
-tVecGty{T}(X::Array{T,1}) where {T} = tVecGty{T}(X,Array{Float64}(undef,1),[length(X)])
-# tVecGty{T}(X::Array{T,1}) where {T} = tVecGty{T}(X,[0.0],[length(X)])
+tVecGty{T}(X::AbstractVector) where {T<:AbstractVector}= tVecGty{T}(X,[0.0],[length(X)])
 
 # ===================
 # type: evolutionary dynamics data
@@ -63,18 +81,19 @@ struct tEvoData
 	Ngen::Int32
 	growthFactor::Array{Float64,1}
 	aveFitness::Array{Float64,1}
+	mutationNumber::Array{Float64,1}
 end
 
 # simplified constructor
-tEvoData(Ngen::Int32) = tEvoData(Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen))
+tEvoData(Ngen::Int32) = tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen))
 
 # ===================
 # type: population
-struct tLivingPop{T} <: atPopulation
+struct tLivingPop{T, Tevo<:atEvotype, Tenv<:atEnvironment, TaGty<:Array{<:atGenotype,1}} <: atPopulation
 	pN::Array{Int32,1}		# population number: effective population, fixed population value, array size
-	ety::atEvotype
-	env::atEnv
-	aGty::Array{atGenotype{T},1}		# genotypes
+	ety::Tevo
+	env::Tenv
+	aGty::TaGty		# genotypes
 
 	repFactor::Float64
 	mutFactor::Float64

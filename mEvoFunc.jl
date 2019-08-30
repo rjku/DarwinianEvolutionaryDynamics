@@ -1,24 +1,39 @@
 
 module mEvoFunc
-using mEvoTypes, Random, Base.Threads, Distances
+using mEvoTypes, Random, Base.Threads, Distances, ProgressMeter
 import Future
 
+const FITNESSOFFSET = .001
 
-# *******************
-# PROPER EVOLUTIONARY FUNCTIONS
-# *******************
+# simplified constructor for discrete time evolution
+function tLivingPop{T, Tevo, Tenv, TaGty}( N::Int32,ety::Tevo,env::Tenv,aGty::Array{<:atGenotype,1},
+		repFactor::Float64,mutFactor::Float64,Xvar::T,ΔtOffset::Float64,prm::tDTMCprm ) where {T,
+		Tevo<:atEvotype, Tenv<:atEnvironment, TaGty<:Array{<:atGenotype,1}}
+	for i in 1:N fitness!(ety,env,aGty[i],prm) end
+
+	tLivingPop{T, Tevo, Tenv, TaGty}( Int32[N,N,length(aGty)],ety,env,aGty,
+	repFactor/(2maximum([aGty[i].pdX[1] for i in 1:N])*mutFactor+ΔtOffset),
+	mutFactor/(2maximum([aGty[i].pdX[1] for i in 1:N])*mutFactor+ΔtOffset),
+	Xvar )
+end
+
+export tLivingPop
+
+# *********************************
+# | PROPER EVOLUTIONARY FUNCTIONS \
+# *********************************
 
 # replication function: ( living population, replication factor, Marsenne Twister ) → replicated population
 function replication!(pop::tLivingPop,R::Vector{MersenneTwister})
 	G = zeros(Int32,pop.pN[2])
-	@threads for i in 1:pop.pN[2]
+	# @threads
+	for i in 1:pop.pN[2]
 		Kr::Float64 = pop.repFactor*pop.aGty[i].pF[1]
 		ipKr::Int32 = trunc(Int32,Kr)
 
 		G[i] = rand(R[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr
 		# G::Int64 = rand() < Kr - ipKr ? ipKr + 1 : ipKr
 	end
-
 	for i in 1:pop.pN[2]
 		for inew in 1:G[i]
 			pop.pN[1] += 1
@@ -30,33 +45,15 @@ function replication!(pop::tLivingPop,R::Vector{MersenneTwister})
 			end
 		end
 	end
-end
-
-# effective selection function: ( population, MT ) → selected population
-function effSelection!(pop::tLivingPop; ubermode::Bool=false)
-	growthFactor::Float64 = log(pop.pN[1]/pop.pN[2])
-	popGtyRef::Array{atGenotype,1} = deepcopy(pop.aGty)
-
-	if ubermode
-		# survival of the fittest
-		survivedGty = sortperm([pop.aGty[i].pF[1] for i in 1:pop.pN[1]],rev=true)
-	else
-		# selection with replacement of individuals
-		survivedGty = rand(collect(1:pop.pN[1]),pop.pN[2])
-	end
-	for i in 1:pop.pN[2]
-		pop.aGty[i] = popGtyRef[survivedGty[i]]		# error?
-	end
-
-	# population size renormalization
-	pop.pN[1] = pop.pN[2]
-
-	return growthFactor
+	# returning growth factor
+	return log(pop.pN[1]/pop.pN[2])
 end
 
 # effective mutation function: ( population, variation, fitness!Function acting on genotypes, MT )
-function effMutation!(pop::tLivingPop, R::Vector{MersenneTwister})
-	@threads for i in 1:pop.pN[1]
+function effMutation!(pop::tLivingPop,prm::tDTMCprm,R::Vector{MersenneTwister})
+	Nmutations::Int32 = 0
+	# Nmutations = Atomic{Int32}(0) # @threads
+	for i in 1:pop.pN[1]
 		r1::Float64 = rand(R[threadid()])
 		cumProb::Float64 = 0.
 		xvar::Int32 = -1
@@ -69,22 +66,44 @@ function effMutation!(pop::tLivingPop, R::Vector{MersenneTwister})
 		end
 		if xvar < 2pop.aGty[i].pdX[1]
 			pop.aGty[i].X[xvar%pop.aGty[i].pdX[1]+1] += xvar < pop.aGty[i].pdX[1] ? pop.Xvar : -pop.Xvar
-			fitness!(pop.ety,pop.env,pop.aGty[i])
+			fitness!(pop.ety,pop.env,pop.aGty[i],prm)
+			Nmutations += Int32(1)
 		end
 	end
+	# returning the total number of mutations normalized by population
+	return Nmutations/pop.pN[1]
 end
 
+# effective selection function: ( population, MT ) → selected population
+function effSelection!(pop::tLivingPop, ubermode::Bool)
+	popGtyRef::Array{atGenotype,1} = copy(pop.aGty)
+
+	if ubermode
+		# survival of the fittest
+		survivedGty = sortperm([pop.aGty[i].pF[1] for i in 1:pop.pN[1]],rev=true)
+		# sort!(pop.aGty, by= x -> x.pF[1], rev=true)
+	else
+		# selection with replacement of individuals
+		survivedGty = rand(1:pop.pN[1],pop.pN[2])
+	end
+	for i in 1:pop.pN[2]
+		pop.aGty[i] = popGtyRef[survivedGty[i]]
+	end
+
+	# population size renormalization
+	pop.pN[1] = pop.pN[2]
+end
 
 # evolution function: ( population, evolutionary dynamics data )
-function evolution!(pop::tLivingPop, evo::tEvoData)#::Int8
+function evolution!(pop::tLivingPop,evo::tEvoData,prm::tDTMCprm; ubermode::Bool=false)#::Int8
 	R = let m = MersenneTwister(1)
 	        [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
 	    end;
 
-	for gen in 1:evo.Ngen
-		replication!(pop,R)
-		effMutation!(pop,R)
-		evo.growthFactor[gen] = effSelection!(pop,ubermode=true)
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.growthFactor[gen] = replication!(pop,R)
+		evo.mutationNumber[gen] = effMutation!(pop,prm,R)
+		effSelection!(pop,ubermode)
 		evo.aveFitness[gen] = sum([pop.aGty[i].pF[1] for i in 1:pop.pN[2]])/pop.pN[2]
 	end
 end
@@ -92,98 +111,77 @@ end
 export replication!, effMutation!, effSelection!, evolution!
 
 
-# *******************
-# ISING
-# *******************
+# ***********
+# *  ISING  *
+# ***********
+
+# function: flipping --- for metropolis
+function flipping!(isingST::tIsingSigTransEty, βJij::Array{<:Real,1}, βhi::Real, n::Array{<:Integer,2})
+	# Monte Carlo step evaluated using Glauber transition rates:
+	# next possibly transitioning spin (coordinates)
+	i, j = rand(collect(1:isingST.L)), rand(collect(1:isingST.L))
+	# transitioning?!
+	if i <= isingST.li && j <= isingST.li
+		if rand() < ( 1. - n[i,j]*tanh(
+				βJij[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + βJij[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
+				βJij[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + βJij[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
+				isingST.ℍe + βhi ))/2
+			n[i,j] = - n[i,j]
+		end
+	else
+		if rand() < ( 1. - n[i,j]*tanh(
+				βJij[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + βJij[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
+				βJij[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + βJij[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
+				isingST.ℍe ))/2
+			n[i,j] = - n[i,j]
+		end
+	end
+end
 
 # ===================
 # MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation
 # 	( tIsingST isingST, interaction matrix Jij, input field h ) → readout magnetization m
-function metropolis(isingST::tIsingSigTransEty, Jij::Array{T,1}, hi::Real)::Real where {T<:Real}
-	Nmcs::Int32 =  50isingST.L2		# number of Monte Carlo steps
-	Nsamplings::Int16 = 20				# number of samplings points
-	𝕁::Array{Float64,1} = Jij*isingST.β;	ℍi::Float64 = hi*isingST.β
+function metropolis(isingST::tIsingSigTransEty,Jij::Array{T,1},hi::Real,prm::tDTMCprm)::Real where {T<:Real}
+	βJij::Array{Float64,1} = Jij*isingST.β;		βhi::Float64 = hi*isingST.β
 
 	# the initial state vector
-	n = (isingST.he != 0.0 ? sign(isingST.he) : 1)*ones(Int8, isingST.L, isingST.L)
+	n = Int8(isingST.he != 0.0 ? sign(isingST.he) : 1).*ones(Int8, isingST.L, isingST.L)
 
 	# definition: time-averaged readout magnetization
 	mro::Float64 = 0.0
 
-	for is in 1:Nsamplings
-		for imcs in 1:Nmcs
-			# Monte Carlo step evaluated using Glauber transition rates:
-			# next possibly transitioning spin (coordinates)
-			i, j = rand(collect(1:isingST.L)), rand(collect(1:isingST.L))
-			# transitioning?!
-			if i <= isingST.li && j <= isingST.li
-				if rand() < ( 1. - n[i,j]*tanh(
-						𝕁[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + 𝕁[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
-						𝕁[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + 𝕁[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
-						isingST.ℍe + ℍi ))/2
-					n[i,j] = - n[i,j]
-				end
-			else
-				if rand() < ( 1. - n[i,j]*tanh(
-						𝕁[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + 𝕁[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
-						𝕁[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + 𝕁[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
-						isingST.ℍe ))/2
-					n[i,j] = - n[i,j]
-				end
-			end
+	for is in 1:prm.Nsmpl
+		for imcs in 1:prm.Nmcsps
+			flipping!(isingST,βJij,βhi,n)
 		end
-
 		# evaluation: time-averaged readout magnetization
 		mro += sum(n[isingST.halfL+1:isingST.halfL+isingST.li,isingST.halfL+1:isingST.halfL+isingST.li])
 	end
-
 	# evaluation: time-averaged readout magnetization
-	mro /= Nsamplings * isingST.li2
+	mro /= prm.Nsmpl * isingST.li2
 
 	return mro
 end
 
 # ===================
-# MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation
+# MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation, n evolution
 # 	( tIsingST isingST, state n, interaction matrix Jij, input field h ) → readout magnetization m
-function metropolis(isingST::tIsingSigTransEty, n::Array{T1,2}, Jij::Array{T2,1}, hi::Real)::Real where
-		{T1<:Integer,T2<:Real}
-	Nmcs::Int32 =  50isingST.L2		# number of Monte Carlo steps
-	Nsamplings::Int16 = 20				# number of samplings points
-	𝕁::Array{Float64,1} = Jij*isingST.β;	ℍi::Float64 = hi*isingST.β
+function metropolis!(isingST::tIsingSigTransEty,Jij::Array{<:Real,1},hi::Real,n::Array{<:Integer,2},prm::tDTMCprm)
+	βJij::Array{Float64,1} = Jij*isingST.β;		βhi::Float64 = hi*isingST.β
 
-	# definition: time-averaged readout magnetization
+	# definition: time-averaged readout magnetization and readout region range
 	mro::Float64 = 0.0
+	roRegionRange = isingST.halfL+1:isingST.halfL+isingST.li
 
-	for is in 1:Nsamplings
-		for imcs in 1:Nmcs
-			# Monte Carlo step evaluated using Glauber transition rates:
-			# next possibly transitioning spin (coordinates)
-			i, j = rand(collect(1:isingST.L)), rand(collect(1:isingST.L))
-			# transitioning?!
-			if i <= isingST.li && j <= isingST.li
-				if rand() < ( 1. - n[i,j]*tanh(
-						𝕁[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + 𝕁[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
-						𝕁[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + 𝕁[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
-						isingST.ℍe + ℍi ))/2
-					n[i,j] = - n[i,j]
-				end
-			else
-				if rand() < ( 1. - n[i,j]*tanh(
-						𝕁[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + 𝕁[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
-						𝕁[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + 𝕁[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
-						isingST.ℍe ))/2
-					n[i,j] = - n[i,j]
-				end
-			end
+	for is in 1:prm.Nsmpl
+		for imcs in 1:prm.Nmcsps
+			flipping!(isingST,βJij,βhi,n)
 		end
-
 		# evaluation: time-averaged readout magnetization
-		mro += sum(n[isingST.halfL+1:isingST.halfL+isingST.li,isingST.halfL+1:isingST.halfL+isingST.li])
+		mro += sum(view(n,roRegionRange,roRegionRange))
 	end
-
 	# evaluation: time-averaged readout magnetization
-	mro /= Nsamplings * isingST.li2
+	mro /= prm.Nsmpl * isingST.li2
 
 	return mro
 end
@@ -191,87 +189,61 @@ end
 # ===================
 # MonteCarlo simulation function for ising signal transduction: time-averaged spin config evaluation
 # 	( tIsingST isingST, state n, interaction matrix Jij, input field h ) → readout magnetization m
-function metropolis(isingST::tIsingSigTransEty, n::Array{T1,2}, Jij::Array{T2,1}, hi::Real, aves::Array{T3,2}) where
-		{T1<:Integer,T2<:Real,T3<:Real}
-	Nmcs::Int32 =  50isingST.L2		# number of Monte Carlo steps
-	Nsamplings::Int16 = 20				# number of samplings points
-	𝕁::Array{Float64,1} = Jij*isingST.β;	ℍi::Float64 = hi*isingST.β
+function metropolis!(isingST::tIsingSigTransEty,Jij::Array{<:Real,1},hi::Real,aves::Array{Float64,2},prm::tDTMCprm)
+	βJij::Array{Float64,1} = Jij.*isingST.β;		βhi::Float64 = hi.*isingST.β
 
-	# initialization: time-averaged spin config
-	aves = zeros(eltype(aves), isingST.L, isingST.L)
+	# initialization: initial state vector
+	n = Int8(isingST.he != 0.0 ? sign(isingST.he) : 1).*ones(Int8, isingST.L, isingST.L)
 
-	for is in 1:Nsamplings
-		for imcs in 1:Nmcs
-			# Monte Carlo step evaluated using Glauber transition rates:
-			# next possibly transitioning spin (coordinates)
-			i, j = rand(collect(1:isingST.L)), rand(collect(1:isingST.L))
-			# transitioning?!
-			if i <= isingST.li && j <= isingST.li
-				if rand() < ( 1. - n[i,j]*tanh(
-						𝕁[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + 𝕁[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
-						𝕁[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + 𝕁[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
-						isingST.ℍe + ℍi ))/2
-					n[i,j] = - n[i,j]
-				end
-			else
-				if rand() < ( 1. - n[i,j]*tanh(
-						𝕁[isingST.Jpi[i,j]]*n[isingST.jp[i],j] + 𝕁[isingST.Jmi[i,j]]*n[isingST.jm[i],j] +
-						𝕁[isingST.Jpj[i,j]]*n[i,isingST.jp[j]] + 𝕁[isingST.Jmj[i,j]]*n[i,isingST.jm[j]] +
-						isingST.ℍe ))/2
-					n[i,j] = - n[i,j]
-				end
-			end
+	for is in 1:prm.Nsmpl
+		for imcs in 1:prm.Nmcsps
+			flipping!(isingST,βJij,βhi,n)
 		end
-
 		# evaluation: time-averaged spin config
-		aves += n
+		aves .+= n
 	end
-
 	# evaluation: time-averaged spin config
-	aves /= Nsamplings
-
-	matshow(aves,cmap="Greys_r"); gcf()
+	aves ./= prm.Nsmpl
 end
 
 # fitness function for ising signal transduction
 # 	( evotype isingST, genotype gty, environment isingSTenv )
-function fitness(isingST::tIsingSigTransEty, gty::at1dGty{<:Real}, isingSTenv::tCompEnv{<:Real})::Float64
-	# where {Tgty,Tenv<:Real}
-	invf::Float64 = 0.0
+function fitness!(isingST::tIsingSigTransEty,isingSTenv::tCompEnv{<:Array{Float64}},gty::tVecGty,prm::tDTMCprm)
+	d2::Float64 = 0.0
 	for iio in isingSTenv.idealInputOutput
-		invf += ( metropolis(isingST, gty.X, iio[1]) - iio[2] )^2
+		d2 += (metropolis( isingST,broadcast(i->exp(i),gty.X),iio[1],prm ) - iio[2])^2
 	end
-	return 1/(sqrt(invf)+0.1)	# fitness offset = 0.1
+	gty.pF[1] = exp(-sqrt(d2)/isingSTenv.selFactor)
 end
 
-function fitness!(isingST::tIsingSigTransEty, isingSTenv::tCompEnv{<:Real}, gty::at1dGty{<:Real})
-	# where {Tgty,Tenv<:Real}
-	invf::Float64 = 0.0
+function fitness(isingST::tIsingSigTransEty,isingSTenv::tCompEnv{<:Array{Float64}},gty::tVecGty,
+		prm::tDTMCprm)::Float64
+	d2::Float64 = 0.0
 	for iio in isingSTenv.idealInputOutput
-		invf += ( metropolis(isingST, gty.X, iio[1]) - iio[2] )^2
+		d2 += (metropolis( isingST,broadcast(i->exp(i),gty.X),iio[1],prm ) - iio[2])^2
 	end
-	gty.pF[1] = 1/(sqrt(invf)+0.1)	# fitness offset = 0.1
+	return exp(-sqrt(d2)/isingSTenv.selFactor)
 end
 
-# constructor of tLivingPop based on ising fitness
-# function tLivingPop{T}( N::Int32,ety::tIsingSigTransEty,env::atEnv,aGty::Array{<:atGenotype{T},1},
-# 	repFactor::Float64,mutFactor::Float64,Xvar::T,ΔtOffset::Float64 ) where {T}
-# 	for i in 1:N fitness!(ety,env,aGty[i]) end
-# 	tLivingPop{T}( Int32[N,N,length(aGty)],ety,env,aGty )
-# end
-
-# simplified constructor for discrete time evolution
-function tLivingPop{T}( N::Int32,ety::atEvotype,env::atEnv,aGty::Array{<:atGenotype{T},1},
-		repFactor::Float64,mutFactor::Float64,Xvar::T,ΔtOffset::Float64 ) where {T}
-	for i in 1:N fitness!(ety,env,aGty[i]) end
-
-	tLivingPop{T}( Int32[N,N,length(aGty)],ety,env,aGty,
-	repFactor/(2maximum([aGty[i].pdX[1] for i in 1:N])*mutFactor+ΔtOffset),
-	mutFactor/(2maximum([aGty[i].pdX[1] for i in 1:N])*mutFactor+ΔtOffset),
-	Xvar )
+# function: showing the spin config of the ising signal transduction system
+# 	( evotype isingST, environment isingSTenv, genotype gty )
+function showPhenotype!(isingST::tIsingSigTransEty,isingSTenv::tCompEnv{<:Array{Float64}},gty::tVecGty,
+		aAves::Array{Array{Float64,2},1},prm::tDTMCprm)
+	i::Int32 = 1
+	for iio in isingSTenv.idealInputOutput
+		metropolis!(isingST,broadcast(i->exp(i),gty.X),iio[1],aAves[i],prm)
+		i+=1
+	end
 end
 
-export metropolis, fitness, fitness!, tLivingPop
+function showGenotype!(isingST::tIsingSigTransEty,gty::tVecGty,JijMat::Array{Float64,2})
+	ii::Int32 = 0
+	for j in 1:2isingST.L, i in 1:2isingST.L
+		JijMat[i,j] = j%2==1 ? ( i%2==0 ? exp(gty.X[ii+=1]) : -1 ) : ( i%2==1 ? exp(gty.X[ii+=1]) : 10^6+1 )
+	end
+end
+
+export metropolis, metropolis!, fitness!, showPhenotype!, showGenotype!
 
 
 # *******************
@@ -279,10 +251,10 @@ export metropolis, fitness, fitness!, tLivingPop
 # *******************
 
 struct tTrivialEty <: atEvotype end
-struct tTrivialEnv <: atEnv end
+struct tTrivialEnv <: atEnvironment end
 
-function fitness!(trivialEty::tTrivialEty,trivialEnv::tTrivialEnv,gty::at1dGty{<:Real})
-	gty.pF[1]=1/(euclidean(gty.X,ones(Float64,gty.pdX[1]))+1.)
+function fitness!(trivialEty::tTrivialEty,trivialEnv::tTrivialEnv,gty::tVecGty{Array{T,1}}) where {T<:Real}
+	gty.pF[1]=1/(euclidean(gty.X,ones(Float64,gty.pdX[1]))+FITNESSOFFSET)
 end
 
 export tTrivialEty, tTrivialEnv, fitness!
