@@ -67,13 +67,13 @@ struct tTrivialEnv <: atEnvironment end
 # ===================
 # type: vectorial genotype
 struct tVecGty{T<:AbstractVector} <: at1dGty
+	pdX::Array{Int32,1}
 	X::T
 	pF::Array{Float64,1}
-	pdX::Array{Int32,1}
 end
 
 # constructor: undefined fitness
-tVecGty{T}(X::AbstractVector) where {T<:AbstractVector}= tVecGty{T}(X,[0.0],[length(X)])
+tVecGty{T}(X::AbstractVector) where {T<:AbstractVector} = tVecGty{T}([length(X)],X,[0.0])
 
 # ===================
 # type: evolutionary dynamics data

@@ -42,6 +42,11 @@ isingPop = tLivingPop{Float64,tIsingSigTransEty,tCompEnv,Array{tVecGty,1}}(
 	NPOP,isingEty,isingEnv,[ tVecGty{Array{Float64,1}}(rand(-4:.5:5,2SYSTEMSIZE^2)) for i in 1:3NPOP ],
 	REPRATE,MUTRATE,DELTAX,DELTATOFFSET,isingDTMCprm )
 
+write_aGty(isingPop)
+
+isingPopClone = tLivingPop{Float64,tIsingSigTransEty,tCompEnv,Array{tVecGty,1}}(
+	isingEty,isingEnv,"population_2019-09-03T20:26:50.202.dat",REPRATE,MUTRATE,DELTAX,DELTATOFFSET )
+
 isingData = tEvoData(NGEN)
 @time evolution!(isingPop,isingData,isingDTMCprm,ubermode=true)
 

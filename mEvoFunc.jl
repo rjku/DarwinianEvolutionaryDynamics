@@ -1,6 +1,6 @@
 
 module mEvoFunc
-using mEvoTypes, Random, Base.Threads, Distances, ProgressMeter
+using mEvoTypes, Random, Base.Threads, DelimitedFiles, Dates, Distances, ProgressMeter
 import Future
 
 const FITNESSOFFSET = .001
@@ -17,7 +17,33 @@ function tLivingPop{T, Tevo, Tenv, TaGty}( N::Int32,ety::Tevo,env::Tenv,aGty::Ar
 	Xvar )
 end
 
-export tLivingPop
+# function: saving the genotypes for 1dGty's
+function write_aGty(pop::tLivingPop{<:Number,<:atEvotype,<:atEnvironment,<:Array{<:at1dGty,1}})
+	open( "population_" * string(now()) * ".dat", "w" ) do f
+		for i in 1:pop.pN[2]
+			print(f,pop.aGty[i].pdX[1],"\t")
+			for x in pop.aGty[i].X
+				print(f,x,"\t")
+			end
+			print(f,pop.aGty[i].pF[1],"\n")
+		end
+	end
+end
+
+# simplified constructor for stored populations
+function tLivingPop{T, Tevo, Tenv, TaGty}( ety::Tevo,env::Tenv,aGtyFileName::String,
+		repFactor::Float64,mutFactor::Float64,Xvar::T,ΔtOffset::Float64 ) where {T,
+		Tevo<:atEvotype, Tenv<:atEnvironment, TaGty<:Array{<:atGenotype,1}}
+	let mGty = readdlm(aGtyFileName), N = size(mGty)[1]
+		tLivingPop{T,Tevo,Tenv,TaGty}( Int32[N,N,N],ety,env,
+		[ tVecGty{Array{T,1}}([Int32(mGty[i,1])],view(mGty,i,2:Int32(mGty[i,1])),Float64[mGty[i,end]]) for i in 1:N ],
+		repFactor/(2maximum([mGty[i,1] for i in 1:N])*mutFactor+ΔtOffset),
+		mutFactor/(2maximum([mGty[i,1] for i in 1:N])*mutFactor+ΔtOffset),
+		Xvar )
+	end
+end
+
+export tLivingPop, write_aGty
 
 # *********************************
 # | PROPER EVOLUTIONARY FUNCTIONS \
