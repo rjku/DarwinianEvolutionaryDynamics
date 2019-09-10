@@ -36,7 +36,7 @@ function tLivingPop{T, Tevo, Tenv, TaGty}( ety::Tevo,env::Tenv,aGtyFileName::Str
 		Tevo<:atEvotype, Tenv<:atEnvironment, TaGty<:Array{<:atGenotype,1}}
 	let mGty = readdlm(aGtyFileName), N = size(mGty)[1]
 		tLivingPop{T,Tevo,Tenv,TaGty}( Int32[N,N,N],ety,env,
-		[ tVecGty{Array{T,1}}([Int32(mGty[i,1])],view(mGty,i,2:Int32(mGty[i,1])),Float64[mGty[i,end]]) for i in 1:N ],
+		[ tVecGty{Array{T,1}}([Int32(mGty[i,1])],view(mGty,i,2:1+Int32(mGty[i,1])),Float64[mGty[i,end]]) for i in 1:N ],
 		repFactor/(2maximum([mGty[i,1] for i in 1:N])*mutFactor+ΔtOffset),
 		mutFactor/(2maximum([mGty[i,1] for i in 1:N])*mutFactor+ΔtOffset),
 		Xvar )
@@ -269,7 +269,7 @@ function showGenotype!(isingST::tIsingSigTransEty,gty::tVecGty,JijMat::Array{Flo
 	end
 end
 
-export metropolis, metropolis!, fitness!, showPhenotype!, showGenotype!
+export metropolis, metropolis!, fitness, fitness!, showPhenotype!, showGenotype!
 
 
 # *******************

@@ -21,7 +21,8 @@ my_cmap.set_under("Black")
 my_cmap.set_over("White")
 
 # matshow(JijMat,cmap=my_cmap,vmin=0,vmax=exp(maximum(isingPop.aGty[1].X))+.1);
-matshow(JijMat,cmap=my_cmap,vmin=0,vmax=exp(maximum(myFancyX))+.1);
+matshow(JijMat,cmap=my_cmap,vmin=0,vmax=exp(maximum(isingPopClone.aGty[1].X))+.1);
+# matshow(JijMat,cmap=my_cmap,vmin=0,vmax=exp(maximum(myFancyX))+.1);
 xticks(0:10:2SYSTEMSIZE,0:5:2SYSTEMSIZE÷2);
 yticks(0:10:2SYSTEMSIZE,0:5:2SYSTEMSIZE÷2);
 colorbar();
