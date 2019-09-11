@@ -122,7 +122,7 @@ end
 
 # constructor: ising signal transduction
 tIsingSigTransEty(L::Int32, β::Real, he::Real) = tIsingSigTransEty(
-	L, 2L^2, β, he, L^2, L÷2, L÷10, (L÷10)^2, he*β,
+	L, 2L^2, β, he, L^2, L÷2, L÷10+1, (L÷10+1)^2, he*β,
 	Int32[i%L+1 for i in 1:L],
 	Int32[(L-2+i)%L+1 for i in 1:L],
 	Int32[i+2(j-1)*L for i in 1:L, j in 1:L],
