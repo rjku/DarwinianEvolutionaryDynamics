@@ -1,4 +1,6 @@
 
+using PyPlot
+
 figure(1); clf()
 plot(collect(1:NGEN),isingData.aveFitness); gcf()
 
@@ -6,7 +8,7 @@ figure(1.5); clf()
 plot(collect(1:NGEN),isingData.growthFactor); gcf()
 
 figure(1.6); clf()
-plot(collect(1:NGEN),isingData.mutationNumber); gcf()
+plot(collect(1:NGEN),isingData.mutationFactor); gcf()
 
 figure(2); clf()
 matshow(aAves[1],cmap="Greys_r",vmin=-1,vmax=1); gcf()

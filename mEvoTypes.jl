@@ -6,33 +6,33 @@ module mEvoTypes
 # *******************
 
 # ===================
-# system types
-abstract type atSystem end
-abstract type atThermoSystem <: atSystem end
-
+# simulation types
 abstract type atMonteCarloPrm end
 
-export atSystem, atThermoSystem, atMonteCarloPrm
+export atMonteCarloPrm
 
 # ===================
 # environment types
 abstract type atEnvironment end
 
 # computational: input--ideal-output | T relates to the representation ...
-abstract type atCompEnv{T} <: atEnvironment end
+abstract type atCompEnv <: atEnvironment end
 
 export atEnvironment, atCompEnv
 
 # ===================
 # population dynamics types
 abstract type atPopulation end
+
 abstract type atEvotype end
-abstract type atGenotype end			# T relates to the representation of the genotypic variables
-abstract type atPhenotype{T} end		# T relates to the representation of the phenotypic variables
+abstract type atMetaGenotype end
+abstract type atGenotype end
 
-abstract type at1dGty <: atGenotype end
+abstract type atPhenotype end		# T relates to the representation of the phenotypic variables
 
-export atPopulation, atEvotype, atGenotype, atPhenotype, at1dGty
+abstract type atVecGty <: atGenotype end
+
+export atPopulation, atEvotype, atMetaGenotype, atGenotype, atPhenotype, atVecGty
 
 
 # *******************
@@ -40,7 +40,7 @@ export atPopulation, atEvotype, atGenotype, atPhenotype, at1dGty
 # *******************
 
 # ===================
-# type: simulation parameters
+# type: discrete time monte carlo parameters
 struct tDTMCprm <: atMonteCarloPrm
 	Nsmpl::Int32							# number of Samples
 	Nmcsps::Int32							# number of Monte Carlo Steps per Sample
@@ -49,13 +49,10 @@ end
 export tDTMCprm
 
 # ===================
+# environment types
+# ===================
 # type: computational environment
-# struct tCompEnv{T} <: atCompEnv{T}
-# 	idealInputOutput::Array{Array{T},1}
-# 	selFactor::Float64
-# end
-# to improve:
-struct tCompEnv{T<:AbstractArray} <: atCompEnv{T}
+struct tCompEnv{T<:AbstractArray} <: atCompEnv
 	idealInputOutput::Array{T,1}
 	selFactor::Float64
 end
@@ -65,15 +62,26 @@ end
 struct tTrivialEnv <: atEnvironment end
 
 # ===================
+# population dynamics types
+# ===================
+# type: evotype
+struct tEty{Tx<:Number} <: atEvotype
+	pRepFactor::Vector{Float64}
+	pMutFactor::Vector{Float64}
+	Xvar::Tx
+end
+
+# ===================
 # type: vectorial genotype
-struct tVecGty{T<:AbstractVector} <: at1dGty
-	pdX::Array{Int32,1}
-	X::T
+struct tVecGty{TpMGty<:Vector{<:atMetaGenotype},Tx<:AbstractVector} <: atVecGty
+	pMGty::TpMGty
+	X::Tx
 	pF::Array{Float64,1}
 end
 
 # constructor: undefined fitness
-tVecGty{T}(X::AbstractVector) where {T<:AbstractVector} = tVecGty{T}([length(X)],X,[0.0])
+tVecGty(pMGty::TpMGty,X::TX) where {TpMGty<:Vector{<:atMetaGenotype},TX<:AbstractVector} =
+	tVecGty{TpMGty,TX}(pMGty,X,[0.0])
 
 # ===================
 # type: evolutionary dynamics data
@@ -81,32 +89,30 @@ struct tEvoData
 	Ngen::Int32
 	growthFactor::Array{Float64,1}
 	aveFitness::Array{Float64,1}
-	mutationNumber::Array{Float64,1}
+	mutationFactor::Array{Float64,1}
 end
 
-# simplified constructor
+# initializer constructor
 tEvoData(Ngen::Int32) = tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen))
 
 # ===================
 # type: population
-struct tLivingPop{T, Tevo<:atEvotype, Tenv<:atEnvironment, TaGty<:Array{<:atGenotype,1}} <: atPopulation
-	pN::Array{Int32,1}		# population number: effective population, fixed population value, array size
-	ety::Tevo
+struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,TaMGty<:Vector{<:atMetaGenotype},TaGty<:Vector{<:atGenotype},Tprm<:atMonteCarloPrm} <: atPopulation
+	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
+	ety::Tety
 	env::Tenv
-	aGty::TaGty		# genotypes
-
-	repFactor::Float64
-	mutFactor::Float64
-	Xvar::T
+	pMetaGty::TaMGty
+	aGty::TaGty
+	atMonteCarloPrm::Tprm
 end
 
-export tCompEnv, tVecGty, tEvoData, tLivingPop
+export tCompEnv, tEty, tVecGty, tEvoData, tLivingPop
 
 # ===================
 # type: ising signal transduction
-struct tIsingSigTransEty <: atEvotype
+struct tIsingSigTransMGty <: atMetaGenotype
 	L::Int32				# system size
-	lJij::Int32				# interaction matrix number of entries
+	dX::Int32				# interaction matrix number of entries
 
 	β::Float64 				# inverse temperature [ critical inverse temperature ≃ 1/2.3 ≃ 0.43 ]
 	he::Float64 			# global external field H
@@ -121,7 +127,7 @@ struct tIsingSigTransEty <: atEvotype
 end
 
 # constructor: ising signal transduction
-tIsingSigTransEty(L::Int32, β::Real, he::Real) = tIsingSigTransEty(
+tIsingSigTransMGty(L::Int32, β::Real, he::Real) = tIsingSigTransMGty(
 	L, 2L^2, β, he, L^2, L÷2, L÷10+1, (L÷10+1)^2, he*β,
 	Int32[i%L+1 for i in 1:L],
 	Int32[(L-2+i)%L+1 for i in 1:L],
@@ -131,6 +137,6 @@ tIsingSigTransEty(L::Int32, β::Real, he::Real) = tIsingSigTransEty(
 	Int32[i+(2(L-2+j)%L+1)*L for i in 1:L, j in 1:L]
 )
 
-export tIsingSigTransEty
+export tIsingSigTransMGty
 
 end
