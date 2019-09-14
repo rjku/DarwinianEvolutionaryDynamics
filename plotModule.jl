@@ -16,6 +16,7 @@ matshow(aAves[1],cmap="Greys_r",vmin=-1,vmax=1); gcf()
 figure(3); clf()
 matshow(aAves[2],cmap="Greys_r",vmin=-1,vmax=1); gcf()
 
+# using PyPlot
 figure(4); clf()
 # my_cmap=get_cmap("YlOrRd")
 my_cmap=get_cmap("Greens")

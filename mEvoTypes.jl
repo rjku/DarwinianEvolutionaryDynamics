@@ -30,9 +30,10 @@ abstract type atGenotype end
 
 abstract type atPhenotype end		# T relates to the representation of the phenotypic variables
 
+abstract type atIsingMetaGty <: atMetaGenotype end
 abstract type atVecGty <: atGenotype end
 
-export atPopulation, atEvotype, atMetaGenotype, atGenotype, atPhenotype, atVecGty
+export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atVecGty
 
 
 # *******************
@@ -74,7 +75,7 @@ end
 # ===================
 # type: vectorial genotype
 struct tVecGty{TpMGty<:Vector{<:atMetaGenotype},Tx<:AbstractVector} <: atVecGty
-	pMGty::TpMGty
+	pMetaGty::TpMGty
 	X::Tx
 	pF::Array{Float64,1}
 end
@@ -97,20 +98,19 @@ tEvoData(Ngen::Int32) = tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(
 
 # ===================
 # type: population
-struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,TaMGty<:Vector{<:atMetaGenotype},TaGty<:Vector{<:atGenotype},Tprm<:atMonteCarloPrm} <: atPopulation
+struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,TaMGty<:Vector{<:atMetaGenotype},TaGty<:Vector{<:atGenotype}} <: atPopulation
 	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
 	ety::Tety
 	env::Tenv
-	pMetaGty::TaMGty
+	aMetaGty::TaMGty
 	aGty::TaGty
-	atMonteCarloPrm::Tprm
 end
 
 export tCompEnv, tEty, tVecGty, tEvoData, tLivingPop
 
 # ===================
 # type: ising signal transduction
-struct tIsingSigTransMGty <: atMetaGenotype
+struct tIsingSigTransMGty{Tprm<:atMonteCarloPrm} <: atIsingMetaGty
 	L::Int32				# system size
 	dX::Int32				# interaction matrix number of entries
 
@@ -119,22 +119,26 @@ struct tIsingSigTransMGty <: atMetaGenotype
 
 	L2::Int32;	halfL::Int32
 	li::Int32;	li2::Int32			# input/redout region size set to one tenth of the system size
-	ℍe::Float64
+	βhe::Float64
 
 	# definition: useful nearest neighbour coordinate vectors
 	jp::Array{Int32,1}; jm::Array{Int32,1}
 	Jpi::Array{Int32,2}; Jmi::Array{Int32,2}; Jpj::Array{Int32,2}; Jmj::Array{Int32,2}
+
+	prms::Tprm
 end
 
 # constructor: ising signal transduction
-tIsingSigTransMGty(L::Int32, β::Real, he::Real) = tIsingSigTransMGty(
-	L, 2L^2, β, he, L^2, L÷2, L÷10+1, (L÷10+1)^2, he*β,
+tIsingSigTransMGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMonteCarloPrm} =
+	tIsingSigTransMGty{Tprm}(
+	L, 2L^2, β, he, L^2, L÷2, L÷10+1, (L÷10+1)^2, β*he,
 	Int32[i%L+1 for i in 1:L],
 	Int32[(L-2+i)%L+1 for i in 1:L],
 	Int32[i+2(j-1)*L for i in 1:L, j in 1:L],
 	Int32[(L-2+i)%L+1+2(j-1)*L for i in 1:L, j in 1:L],
 	Int32[i+(2j-1)*L for i in 1:L, j in 1:L],
-	Int32[i+(2(L-2+j)%L+1)*L for i in 1:L, j in 1:L]
+	Int32[i+(2(L-2+j)%L+1)*L for i in 1:L, j in 1:L],
+	prms
 )
 
 export tIsingSigTransMGty
