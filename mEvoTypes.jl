@@ -45,6 +45,7 @@ export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPh
 struct tDTMCprm <: atMonteCarloPrm
 	Nsmpl::Int32							# number of Samples
 	Nmcsps::Int32							# number of Monte Carlo Steps per Sample
+	Ntrials::Int32
 end
 
 export tDTMCprm
@@ -67,6 +68,9 @@ struct tTrivialEnv <: atEnvironment end
 # ===================
 # type: evotype
 struct tEty{Tx<:Number} <: atEvotype
+	repRate::Float64
+	mutRate::Float64
+	ΔtOffset::Float64
 	pRepFactor::Vector{Float64}
 	pMutFactor::Vector{Float64}
 	Xvar::Tx
@@ -132,8 +136,8 @@ end
 tIsingSigTransMGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMonteCarloPrm} =
 	tIsingSigTransMGty{Tprm}(
 	L, 2L^2, β, he, L^2, L÷2, L÷10+1, (L÷10+1)^2, β*he,
-	Int32[i%L+1 for i in 1:L],
-	Int32[(L-2+i)%L+1 for i in 1:L],
+	Int32[i%L+1 for i in 1:L],									# i -> i+1  with periodic boundary conditions
+	Int32[(L-2+i)%L+1 for i in 1:L],							# i -> i-1  with periodic boundary conditions
 	Int32[i+2(j-1)*L for i in 1:L, j in 1:L],
 	Int32[(L-2+i)%L+1+2(j-1)*L for i in 1:L, j in 1:L],
 	Int32[i+(2j-1)*L for i in 1:L, j in 1:L],

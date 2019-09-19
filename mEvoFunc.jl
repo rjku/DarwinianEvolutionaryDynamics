@@ -12,18 +12,18 @@ function initLivingPop( N::Int32,ety::Tety,env::Tenv,aMGty::Vector{Tmgty},aGty::
 	return tLivingPop{Tety,Tenv,Vector{Tmgty},Vector{Tgty}}( Int32[N,N,length(aGty)],ety,env,aMGty,aGty )
 end
 
-tEty{Tx}(repFactor::Float64,mutFactor::Float64,ΔtOffset::Float64,dX::Int32,Xvar::Tx) where {Tx<:Number} =
-	tEty{Tx}( [repFactor/(2dX*mutFactor+ΔtOffset)], [mutFactor/(2dX*mutFactor+ΔtOffset)], Xvar )
+tEty{Tx}(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,dX::Int32,Xvar::Tx) where {Tx<:Number} =
+	tEty{Tx}( repRate,mutRate,ΔtOffset,[repRate/(2dX*mutRate+ΔtOffset)],[mutRate/(2dX*mutRate+ΔtOffset)],Xvar )
 
 # function changing rep and mut -factors
-function set_tEtyFactors(ety::tEty,repFactor::Float64,mutFactor::Float64,ΔtOffset::Float64,dX::Int32)
-	ety.pRepFactor[1] = repFactor/(2dX*mutFactor+ΔtOffset)
-	ety.pMutFactor[1] = mutFactor/(2dX*mutFactor+ΔtOffset)
+function set_tEtyFactors(ety::tEty,dX::Int32)
+	ety.pRepFactor[1] = ety.repRate/(2dX*ety.mutRate+ety.ΔtOffset)
+	ety.pMutFactor[1] = ety.mutRate/(2dX*ety.mutRate+ety.ΔtOffset)
 end
 
 # function: saving the genotypes for VecGty's
-function write_aGty(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atMetaGenotype},<:Vector{<:atVecGty}})
-	open( "population_" * string(now()) * ".dat", "w" ) do f
+function write_aGty(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atMetaGenotype},<:Vector{<:atVecGty}},fileTag::String)
+	open( "population_" * fileTag * ".dat", "w" ) do f
 		for i in 1:pop.pN[2]
 			print(f,pop.aGty[i].pMetaGty[1].dX,"\t")
 			for x in pop.aGty[i].X
@@ -53,7 +53,16 @@ function read_aIsingSigTransGty( aGtyFileName::String,β::Float64,hi::Float64 )
 		[ aMGty[collect(1:length(sysSizes))[sysSizes .== L[i]][1]] ], matGty[i,2:1+Int32(matGty[i,1])] , Float64[matGty[i,end]] ) for i in 1:Npop ]
 end
 
-export initLivingPop, write_aGty, read_aIsingSigTransGty
+function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
+	open( "evoData_" * fileTag * ".dat", "w" ) do f
+		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.aveFitness[t],"\t") end, print(f,"\n")
+		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.growthFactor[t],"\t") end, print(f,"\n")
+		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.mutationFactor[t],"\t") end, print(f,"\n")
+	end
+end
+
+export tEty, initLivingPop, write_aGty, read_aIsingSigTransGty
+
 
 # *********************************
 # | PROPER EVOLUTIONARY FUNCTIONS \
@@ -74,7 +83,7 @@ function replication!(pop::tLivingPop,R::Vector{MersenneTwister})
 		for inew in 1:G[i]
 			pop.pN[1] += 1
 			if pop.pN[1] <= pop.pN[3]
-				pop.aGty[pop.pN[1]] = deepcopy(pop.aGty[i])
+				pop.aGty[pop.pN[1]] = deepcopy(pop.aGty[i]) 		# <- check whether is necessary to deepcopy
 			else
 				pop.pN[3] += 1
 				push!(pop.aGty,pop.aGty[i])
@@ -134,29 +143,40 @@ function upgradeGtyX!(gty::tVecGty{Vector{TMGty},Vector{Tx}}) where {TMGty<:atMe
 	JijRef = copy(gty.X)
 	append!( gty.X, ones(Float64, 8gty.pMetaGty[1].L+8) )
 	# append!( gty.X, rand(-4:.5:5, 4gty.pMetaGty[1].L+8) )
-	gty.X .= 1.
+	gty.X .= 1.																	# <- get rid of this && compactify for loops!
 
-	for i in 1:gty.pMetaGty[1].halfL, j in 1:gty.pMetaGty[1].L,
+	for i in 1:gty.pMetaGty[1].halfL, j in 1:gty.pMetaGty[1].L
 		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i+(j-1)*gty.pMetaGty[1].L]
 	end
-	for i in gty.pMetaGty[1].halfL+2:gty.pMetaGty[1].L+1, j in 1:gty.pMetaGty[1].L,
+	for i in gty.pMetaGty[1].halfL+2:gty.pMetaGty[1].L+1, j in 1:gty.pMetaGty[1].L
 		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i-1+(j-1)*gty.pMetaGty[1].L]
 	end
-	for i in 1:gty.pMetaGty[1].halfL, j in gty.pMetaGty[1].L+3:2gty.pMetaGty[1].L+2,
+	for i in 1:gty.pMetaGty[1].halfL, j in gty.pMetaGty[1].L+3:2gty.pMetaGty[1].L+2
 		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i+(j-3)*gty.pMetaGty[1].L]
 	end
-	for i in gty.pMetaGty[1].halfL+2:gty.pMetaGty[1].L+1, j in gty.pMetaGty[1].L+3:2gty.pMetaGty[1].L+2,
+	for i in gty.pMetaGty[1].halfL+2:gty.pMetaGty[1].L+1, j in gty.pMetaGty[1].L+3:2gty.pMetaGty[1].L+2
 		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i-1+(j-3)*gty.pMetaGty[1].L]
+	end
+
+	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
+		gty.X[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+			JijRef[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L]
+	end
+
+	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
+		gty.X[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+			JijRef[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L]
 	end
 end
 
-# fitness!(istEnv::tCompEnv{<:Array{Float64}},gty::tVecGty)
-function evoUpgrade!(pop::tLivingPop{<:atEvotype,<:atEnvironment,Vector{tIsingSigTransMGty},<:Vector{<:atVecGty}})
+# function evoUpgrade!(pop::tLivingPop{<:atEvotype,<:atEnvironment,Vector{tIsingSigTransMGty{<:atMonteCarloPrm}},Vector{<:atVecGty}})
+function evoUpgrade!(pop::tLivingPop)
 	for i in 1:pop.pN[2]
-		if pop.aGty[i].pF[1] > FITNESSTHRESHOLD - (pop.aGty[i].pMetaGty[1].L - 6.)/2.
+		if pop.aGty[i].pF[1] - (pop.aGty[i].pMetaGty[1].halfL - 2.) > FITNESSTHRESHOLD
+			# update the genotypic variables X
 			upgradeGtyX!(pop.aGty[i])
-			fitness!(pop.env,pop.aGty[i])
 
+			# update the metagenotype
 			foundMetaGty = false
 			for metaGty in pop.aMetaGty
 				if pop.aGty[i].pMetaGty[1].L+2 == metaGty.L
@@ -165,9 +185,15 @@ function evoUpgrade!(pop::tLivingPop{<:atEvotype,<:atEnvironment,Vector{tIsingSi
 				end
 			end
 			if !foundMetaGty
-				push!( pop.aMetaGty, tIsingSigTransMGty(pop.aGty[i].pMetaGty[1].L+Int32(2),pop.aGty[i].pMetaGty[1].β,pop.aGty[i].pMetaGty[1].he) )
+				push!( pop.aMetaGty,tIsingSigTransMGty(
+					pop.aGty[i].pMetaGty[1].L+Int32(2), pop.aGty[i].pMetaGty[1].β, pop.aGty[i].pMetaGty[1].he, pop.aGty[i].pMetaGty[1].prms
+					))
 				pop.aGty[i].pMetaGty[1] = pop.aMetaGty[end]
+				set_tEtyFactors(pop.ety,pop.aGty[i].pMetaGty[1].dX)
 			end
+
+			# update the fitness
+			fitness!(pop.env,pop.aGty[i])
 		end
 	end
 end
@@ -182,11 +208,12 @@ function evolution!(pop::tLivingPop,evo::tEvoData; ubermode::Bool=false)#::Int8
 		evo.growthFactor[gen] = replication!(pop,R)
 		evo.mutationFactor[gen] = effMutation!(pop,R)
 		effSelection!(pop,ubermode)
+		evoUpgrade!(pop)
 		evo.aveFitness[gen] = sum([pop.aGty[i].pF[1] for i in 1:pop.pN[2]])/pop.pN[2]
 	end
 end
 
-export replication!, effMutation!, effSelection!, evoUpgrade!, evolution!
+export replication!, effMutation!, effSelection!, evoUpgrade!, evolution!, upgradeGtyX!
 
 
 # ***********
@@ -229,7 +256,7 @@ function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real whe
 	mro::Float64 = 0.0
 
 	for is in 1:istMGty.prms.Nsmpl
-		for imcs in 1:istMGty.prms.Nmcsps
+		for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
 			flipping!(istMGty,βJij,βhi,n)
 		end
 		# evaluation: time-averaged readout magnetization
@@ -252,7 +279,7 @@ function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,n
 	roRegionRange = istMGty.halfL+1:istMGty.halfL+istMGty.li
 
 	for is in 1:istMGty.prms.Nsmpl
-		for imcs in 1:istMGty.prms.Nmcsps
+		for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
 			flipping!(istMGty,βJij,βhi,n)
 		end
 		# evaluation: time-averaged readout magnetization
@@ -274,7 +301,7 @@ function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,a
 	n = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
 
 	for is in 1:istMGty.prms.Nsmpl
-		for imcs in 1:istMGty.prms.Nmcsps
+		for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
 			flipping!(istMGty,βJij,βhi,n)
 		end
 		# evaluation: time-averaged spin config
@@ -287,26 +314,34 @@ end
 # fitness function for ising signal transduction
 # 	( evotype istMGty, genotype gty, environment istEnv )
 function fitness!(istEnv::tCompEnv{<:Array{Float64}},gty::tVecGty)
-	d2::Float64 = 0.0
-	for iio in istEnv.idealInputOutput
-		d2 += ( metropolis(gty.pMetaGty[1],broadcast(i->exp(i),gty.X),iio[1]) - iio[2] )^2
+	fValues = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
+	for t in 1:gty.pMetaGty[1].prms.Ntrials
+		d2::Float64 = 0.0
+		for iio in istEnv.idealInputOutput
+			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->exp(x),gty.X),iio[1]) - iio[2] )^2
+		end
+		fValues[t] = exp(-sqrt(d2)/istEnv.selFactor)
 	end
-	gty.pF[1] = exp(-sqrt(d2)/istEnv.selFactor) + (gty.pMetaGty[1].L - 6.)/2.
+	gty.pF[1] = minimum(fValues) + (gty.pMetaGty[1].halfL - 2.)
 end
 
 function fitness(istEnv::tCompEnv{<:Array{Float64}},gty::tVecGty)::Float64
-	d2::Float64 = 0.0
-	for iio in istEnv.idealInputOutput
-		d2 += ( metropolis(gty.pMetaGty[1],broadcast(i->exp(i),gty.X),iio[1]) - iio[2] )^2
+	fValues = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
+	for t in 1:gty.pMetaGty[1].prms.Ntrials
+		d2::Float64 = 0.0
+		for iio in istEnv.idealInputOutput
+			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->exp(x),gty.X),iio[1]) - iio[2] )^2
+		end
+		fValues[t] = exp(-sqrt(d2)/istEnv.selFactor)
 	end
-	return exp(-sqrt(d2)/istEnv.selFactor) + (gty.pMetaGty[1].L - 6.)/2.
+	return minimum(fValues) + (gty.pMetaGty[1].halfL - 2.)
 end
 
 # function: showing the spin config of the ising signal transduction system
 function showPhenotype!(env::tCompEnv,gty::tVecGty,aAves::Array{Array{Float64,2},1})
 	i::Int32 = 0
 	for iio in env.idealInputOutput
-		metropolis!( gty.pMetaGty[1], broadcast(i->exp(i),gty.X), iio[1], aAves[i+=1] )
+		metropolis!( gty.pMetaGty[1], broadcast(x->exp(x),gty.X), iio[1], aAves[i+=1] )
 	end
 end
 
@@ -314,6 +349,16 @@ function showGenotype!(gty::tVecGty,JijMat::Array{Float64,2})
 	ii::Int32 = 0
 	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
 		JijMat[i,j] = j%2==1 ? ( i%2==0 ? exp(gty.X[ii+=1]) : -1 ) : ( i%2==1 ? exp(gty.X[ii+=1]) : 10^6+1 )
+	end
+end
+
+function showJij!(gty::tVecGty,JijMat::Array{Float64,2})
+	JijMat .= 0
+	for x in 1:gty.pMetaGty[1].L, y in 1:gty.pMetaGty[1].L
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jp[x]+(y-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jpi[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jm[x]+(y-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jmi[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jp[y]-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jpj[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jm[y]-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jmj[x,y] ]
 	end
 end
 
