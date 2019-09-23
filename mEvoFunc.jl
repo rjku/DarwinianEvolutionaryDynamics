@@ -1,9 +1,9 @@
 
 module mEvoFunc
-using mEvoTypes, Random, Base.Threads, DelimitedFiles, Dates, Distances, ProgressMeter
+using mEvoTypes, Random, Statistics, Base.Threads, DelimitedFiles, Dates, Distances, ProgressMeter
 import Future
 
-const FITNESSOFFSET, FITNESSTHRESHOLD = .001, .95
+const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS = .001, .95, 3.0
 
 # initializer constructor for discrete time evolution. Same MetaGenotype for all.
 function initLivingPop( N::Int32,ety::Tety,env::Tenv,aMGty::Vector{Tmgty},aGty::Vector{Tgty} ) where {
@@ -20,6 +20,8 @@ function set_tEtyFactors(ety::tEty,dX::Int32)
 	ety.pRepFactor[1] = ety.repRate/(2dX*ety.mutRate+ety.ΔtOffset)
 	ety.pMutFactor[1] = ety.mutRate/(2dX*ety.mutRate+ety.ΔtOffset)
 end
+
+# function write_
 
 # function: saving the genotypes for VecGty's
 function write_aGty(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atMetaGenotype},<:Vector{<:atVecGty}},fileTag::String)
@@ -139,42 +141,37 @@ function effSelection!(pop::tLivingPop, ubermode::Bool)
 	pop.pN[1] = pop.pN[2]
 end
 
-function upgradeGtyX!(gty::tVecGty{Vector{TMGty},Vector{Tx}}) where {TMGty<:atMetaGenotype,Tx}
-	JijRef = copy(gty.X)
+function upgradeGtyX!(gty::tVecGty{Vector{TMGty},Vector{Tx}},Δx::Tx) where {TMGty<:atMetaGenotype,Tx}
+	Xref = copy(gty.X)
 	append!( gty.X, ones(Float64, 8gty.pMetaGty[1].L+8) )
 	# append!( gty.X, rand(-4:.5:5, 4gty.pMetaGty[1].L+8) )
-	gty.X .= 1.																	# <- get rid of this && compactify for loops!
+	# gty.X .= 1.																	# <- get rid of this
 
-	for i in 1:gty.pMetaGty[1].halfL, j in 1:gty.pMetaGty[1].L
-		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i+(j-1)*gty.pMetaGty[1].L]
+	for u in 0:1, j in 1:gty.pMetaGty[1].L, k in 0:1, i in 1:gty.pMetaGty[1].halfL
+		gty.X[ i + k*(gty.pMetaGty[1].halfL + 1) + (j + u*(gty.pMetaGty[1].L + 2) - 1)*(gty.pMetaGty[1].L+2) ] =
+			Xref[ i + k*gty.pMetaGty[1].halfL + (j + u*gty.pMetaGty[1].L - 1)*gty.pMetaGty[1].L ]
 	end
-	for i in gty.pMetaGty[1].halfL+2:gty.pMetaGty[1].L+1, j in 1:gty.pMetaGty[1].L
-		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i-1+(j-1)*gty.pMetaGty[1].L]
-	end
-	for i in 1:gty.pMetaGty[1].halfL, j in gty.pMetaGty[1].L+3:2gty.pMetaGty[1].L+2
-		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i+(j-3)*gty.pMetaGty[1].L]
-	end
-	for i in gty.pMetaGty[1].halfL+2:gty.pMetaGty[1].L+1, j in gty.pMetaGty[1].L+3:2gty.pMetaGty[1].L+2
-		gty.X[i+(j-1)*(gty.pMetaGty[1].L+2)] = JijRef[i-1+(j-3)*gty.pMetaGty[1].L]
-	end
+
+	# duplication of previous line genotype + some randomness
 
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
 		gty.X[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
-			JijRef[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L]
+			Xref[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L] + rand(-1:1)*gty.pMetaGty[1].Δx
 	end
 
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
 		gty.X[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
-			JijRef[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L]
+			Xref[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L] + rand(-1:1)*Δx
 	end
 end
 
 # function evoUpgrade!(pop::tLivingPop{<:atEvotype,<:atEnvironment,Vector{tIsingSigTransMGty{<:atMonteCarloPrm}},Vector{<:atVecGty}})
 function evoUpgrade!(pop::tLivingPop)
 	for i in 1:pop.pN[2]
-		if pop.aGty[i].pF[1] - (pop.aGty[i].pMetaGty[1].halfL - 2.) > FITNESSTHRESHOLD
+		if pop.aGty[i].pF[1] - (pop.aGty[i].pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD
+
 			# update the genotypic variables X
-			upgradeGtyX!(pop.aGty[i])
+			upgradeGtyX!(pop.aGty[i],pop.ety.Xvar)
 
 			# update the metagenotype
 			foundMetaGty = false
@@ -209,7 +206,13 @@ function evolution!(pop::tLivingPop,evo::tEvoData; ubermode::Bool=false)#::Int8
 		evo.mutationFactor[gen] = effMutation!(pop,R)
 		effSelection!(pop,ubermode)
 		evoUpgrade!(pop)
-		evo.aveFitness[gen] = sum([pop.aGty[i].pF[1] for i in 1:pop.pN[2]])/pop.pN[2]
+		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+
+		if evo.aveFitness[gen] >= evo.pAveFt[1]
+			push!(evo.aLivingPop,deepcopy(pop))
+			evo.pAveFt[1] += evo.aveFtinc
+			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.aveFitness[gen] )
+		end
 	end
 end
 
@@ -226,20 +229,20 @@ function flipping!(istMGty::tIsingSigTransMGty, βJij::Array{<:Real,1}, βhi::Re
 	# next possibly transitioning spin (coordinates)
 	i, j = rand(collect(1:istMGty.L)), rand(collect(1:istMGty.L))
 	# transitioning?!
-	if i <= istMGty.li && j <= istMGty.li
-		if rand() < ( 1. - n[i,j]*tanh(
-				βJij[istMGty.Jpi[i,j]]*n[istMGty.jp[i],j] + βJij[istMGty.Jmi[i,j]]*n[istMGty.jm[i],j] +
-				βJij[istMGty.Jpj[i,j]]*n[i,istMGty.jp[j]] + βJij[istMGty.Jmj[i,j]]*n[i,istMGty.jm[j]] +
-				istMGty.βhe + βhi ))/2
-			n[i,j] = - n[i,j]
-		end
-	else
+	if i > istMGty.li || j > istMGty.li
 		if rand() < ( 1. - n[i,j]*tanh(
 				βJij[istMGty.Jpi[i,j]]*n[istMGty.jp[i],j] + βJij[istMGty.Jmi[i,j]]*n[istMGty.jm[i],j] +
 				βJij[istMGty.Jpj[i,j]]*n[i,istMGty.jp[j]] + βJij[istMGty.Jmj[i,j]]*n[i,istMGty.jm[j]] +
 				istMGty.βhe ))/2
 			n[i,j] = - n[i,j]
 		end
+	# else
+	# 	if rand() < ( 1. - n[i,j]*tanh(
+	# 			βJij[istMGty.Jpi[i,j]]*n[istMGty.jp[i],j] + βJij[istMGty.Jmi[i,j]]*n[istMGty.jm[i],j] +
+	# 			βJij[istMGty.Jpj[i,j]]*n[i,istMGty.jp[j]] + βJij[istMGty.Jmj[i,j]]*n[i,istMGty.jm[j]] +
+	# 			istMGty.βhe + βhi ))/2
+	# 		n[i,j] = - n[i,j]
+	# 	end
 	end
 end
 
@@ -251,6 +254,7 @@ function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real whe
 
 	# the initial state vector
 	n = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
+	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
 
 	# definition: time-averaged readout magnetization
 	mro::Float64 = 0.0
@@ -274,6 +278,8 @@ end
 function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,n::Array{<:Integer,2})
 	βJij::Array{Float64,1} = Jij*istMGty.β;		βhi::Float64 = hi*istMGty.β
 
+	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
+
 	# definition: time-averaged readout magnetization and readout region range
 	mro::Float64 = 0.0
 	roRegionRange = istMGty.halfL+1:istMGty.halfL+istMGty.li
@@ -294,21 +300,19 @@ end
 # ===================
 # MonteCarlo simulation function for ising signal transduction: time-averaged spin config evaluation
 # 	( tIsingST istMGty, state n, interaction matrix Jij, input field h ) → readout magnetization m
-function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,aves::Array{Float64,2})
+function metropolis!(istMGty::tIsingSigTransMGty, Jij::Array{<:Real,1}, hi::Real, an::Vector{Array{Int8,2}}, prms::tDTMCprm)
 	βJij::Array{Float64,1} = Jij.*istMGty.β;		βhi::Float64 = hi.*istMGty.β
 
 	# initialization: initial state vector
 	n = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
+	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
 
-	for is in 1:istMGty.prms.Nsmpl
-		for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
+	for is in 1:prms.Nsmpl
+		for imcs in 1:prms.Nmcsps, ilp in 1:istMGty.L2
 			flipping!(istMGty,βJij,βhi,n)
 		end
-		# evaluation: time-averaged spin config
-		aves .+= n
+		an[is] = deepcopy(n)
 	end
-	# evaluation: time-averaged spin config
-	aves ./= istMGty.prms.Nsmpl
 end
 
 # fitness function for ising signal transduction
@@ -318,11 +322,11 @@ function fitness!(istEnv::tCompEnv{<:Array{Float64}},gty::tVecGty)
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		d2::Float64 = 0.0
 		for iio in istEnv.idealInputOutput
-			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->exp(x),gty.X),iio[1]) - iio[2] )^2
+			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10^(x),gty.X),iio[1]) - iio[2] )^2
 		end
 		fValues[t] = exp(-sqrt(d2)/istEnv.selFactor)
 	end
-	gty.pF[1] = minimum(fValues) + (gty.pMetaGty[1].halfL - 2.)
+	gty.pF[1] = minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
 end
 
 function fitness(istEnv::tCompEnv{<:Array{Float64}},gty::tVecGty)::Float64
@@ -330,52 +334,106 @@ function fitness(istEnv::tCompEnv{<:Array{Float64}},gty::tVecGty)::Float64
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		d2::Float64 = 0.0
 		for iio in istEnv.idealInputOutput
-			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->exp(x),gty.X),iio[1]) - iio[2] )^2
+			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10^(x),gty.X),iio[1]) - iio[2] )^2
 		end
 		fValues[t] = exp(-sqrt(d2)/istEnv.selFactor)
 	end
-	return minimum(fValues) + (gty.pMetaGty[1].halfL - 2.)
+	return minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
+end
+
+function myCov(X::AbstractArray,XAve::Number,Y::AbstractArray,YAve::Number,)
+	N = length(X)
+	N == length(Y) || throw(DimensionMismatch("inconsistent dimensions"))
+	cov = 0.0
+	for (x, y) in zip(X,Y)
+		cov += (x - XAve)*(y - YAve)
+	end
+	return cov/(N-1)
 end
 
 # function: showing the spin config of the ising signal transduction system
-function showPhenotype!(env::tCompEnv,gty::tVecGty,aAves::Array{Array{Float64,2},1})
-	i::Int32 = 0
-	for iio in env.idealInputOutput
-		metropolis!( gty.pMetaGty[1], broadcast(x->exp(x),gty.X), iio[1], aAves[i+=1] )
-	end
-end
+function getSpinStat!(env::tCompEnv,gty::tVecGty,aSpinAve::Array{Array{Float64,2},1},
+		aSpinCov::Array{Array{Float64,2},1},sCor::Array{Float64,2},prms::tDTMCprm)
+	aan = Vector{Vector{Array{Int8,2}}}(undef,length(env.idealInputOutput))
+	aSpinCorFisherz = Vector{Array{Float64,2}}(undef,length(env.idealInputOutput))
 
-function showGenotype!(gty::tVecGty,JijMat::Array{Float64,2})
-	ii::Int32 = 0
-	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
-		JijMat[i,j] = j%2==1 ? ( i%2==0 ? exp(gty.X[ii+=1]) : -1 ) : ( i%2==1 ? exp(gty.X[ii+=1]) : 10^6+1 )
+	for i in 1:length(env.idealInputOutput)
+		aan[i] = [ Array{Int8}(undef, gty.pMetaGty[1].L, gty.pMetaGty[1].L) for ismpl in 1:prms.Nsmpl ]
+		aSpinCorFisherz[i] = Array{Float64}(undef, gty.pMetaGty[1].L2, gty.pMetaGty[1].L2)
+
+		metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.X), env.idealInputOutput[i][1], aan[i], prms )
+
+		for s in 1:gty.pMetaGty[1].L2
+			aSpinAve[i][s] = mean([aan[i][t][s] for t in 1:prms.Nsmpl])
+		end
+		for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
+			aSpinCov[i][si,sj] = myCov( [aan[i][t][si] for t in 1:prms.Nsmpl], aSpinAve[i][si],
+				[aan[i][t][sj] for t in 1:prms.Nsmpl], aSpinAve[i][sj] )
+			# aSpinCorFisherz[i][si,sj] = map( r -> log( (1 + r)/(1 - r) )/2, aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si]) )
+			aSpinCorFisherz[i][si,sj] = aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si])
+		end
+	end
+
+	for s1 in 1:gty.pMetaGty[1].L2, s2 in 1:gty.pMetaGty[1].L2
+		# sCor[s2,s1] = tanh( mean( [ aSpinCorFisherz[i][s2,s1] for i in 1:length(env.idealInputOutput)] ) )
+		sCor[s2,s1] = mean( [ aSpinCorFisherz[i][s2,s1] for i in 1:length(env.idealInputOutput)] )
 	end
 end
 
 function showJij!(gty::tVecGty,JijMat::Array{Float64,2})
-	JijMat .= 0
-	for x in 1:gty.pMetaGty[1].L, y in 1:gty.pMetaGty[1].L
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jp[x]+(y-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jpi[x,y] ]
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jm[x]+(y-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jmi[x,y] ]
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jp[y]-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jpj[x,y] ]
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jm[y]-1)*gty.pMetaGty[1].L ] = gty.X[ gty.pMetaGty[1].Jmj[x,y] ]
+	ii::Int32 = 0
+	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
+		JijMat[i,j] = j%2==1 ? ( i%2==0 ? 10^(gty.X[ii+=1]) : -1 ) : ( i%2==1 ? 10^(gty.X[ii+=1]) : 10^6+1 )
 	end
 end
 
-export metropolis, metropolis!, fitness, fitness!, showPhenotype!, showGenotype!
+function getXStat!(pop::tLivingPop,XAve::Vector{Float64},XCov::Array{Float64,2},XCor::Array{Float64,2})
+	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dX, &, [ pop.aGty[i].pMetaGty[1].dX for i in 2:pop.pN[2] ] ) ||
+		throw(DimensionMismatch("inconsistent dimensions"))
+	for x in 1:pop.aGty[1].pMetaGty[1].dX
+		XAve[x] = mean( [pop.aGty[i].X[x] for i in 1:pop.pN[2]] )
+	end
+
+	for y in 1:pop.aGty[1].pMetaGty[1].dX, x in 1:pop.aGty[1].pMetaGty[1].dX
+		XCov[x,y] = myCov( [ pop.aGty[i].X[x] for i in 1:pop.pN[2] ], XAve[x], [ pop.aGty[i].X[y] for i in 1:pop.pN[2] ], XAve[y] )
+		XCor[x,y] = XCov[x,y]/sqrt(XCov[x,x]*XCov[y,y])
+	end
+end
+
+function getJijStat!(pop::tLivingPop,JijAve::Vector{Float64},JijCov::Array{Float64,2},JijCor::Array{Float64,2})
+	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dX, &, [ pop.aGty[i].pMetaGty[1].dX for i in 2:pop.pN[2] ] ) ||
+		throw(DimensionMismatch("inconsistent dimensions"))
+	for x in 1:pop.aGty[1].pMetaGty[1].dX
+		JijAve[x] = mean( [ 10^pop.aGty[i].X[x] for i in 1:pop.pN[2]] )
+	end
+
+	for x in 1:pop.aGty[1].pMetaGty[1].dX, y in 1:pop.aGty[1].pMetaGty[1].dX
+		JijCov[x,y] = myCov( [ 10^pop.aGty[i].X[x] for i in 1:pop.pN[2] ], JijAve[x], [ 10^pop.aGty[i].X[y] for i in 1:pop.pN[2] ], JijAve[y] )
+		JijCor[x,y] = JijCov[x,y]/sqrt(JijCov[x,x]*JijCov[y,y])
+	end
+end
+
+function getJij!(gty::tVecGty,JijMat::Array{Float64,2})
+	JijMat .= 0
+	for x in 1:gty.pMetaGty[1].L, y in 1:gty.pMetaGty[1].L
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jp[x]+(y-1)*gty.pMetaGty[1].L ] = 10.0^gty.X[ gty.pMetaGty[1].Jpi[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jm[x]+(y-1)*gty.pMetaGty[1].L ] = 10.0^gty.X[ gty.pMetaGty[1].Jmi[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jp[y]-1)*gty.pMetaGty[1].L ] = 10.0^gty.X[ gty.pMetaGty[1].Jpj[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jm[y]-1)*gty.pMetaGty[1].L ] = 10.0^gty.X[ gty.pMetaGty[1].Jmj[x,y] ]
+	end
+end
+
+export metropolis, metropolis!, fitness, fitness!, getSpinStat!, showJij!, getXStat!, getJijStat!
 
 
 # *******************
 # TRIVIAL
 # *******************
 
-struct tTrivialEty <: atEvotype end
-struct tTrivialEnv <: atEnvironment end
-
 function fitness!(trivialEty::tTrivialEty,trivialEnv::tTrivialEnv,gty::tVecGty{Array{T,1}}) where {T<:Real}
 	gty.pF[1]=1/(euclidean(gty.X,ones(Float64,gty.pMetaGty[1].dX))+FITNESSOFFSET)
 end
 
-export tTrivialEty, tTrivialEnv, fitness!
+export fitness!
 
 end

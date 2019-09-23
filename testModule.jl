@@ -1,29 +1,29 @@
 
-using Revise, mEvoTypes
+using Revise, mEvoTypes, Statistics
 import mEvoFunc
 
 # *******************
 # *   ISING TEST	*
 # *******************
 
-const NGEN, NPOP, SYSTEMSIZE = Int32(10), Int32(50), Int32(6)			# 100, 30, 30 -> 15'
+const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 1, Int32(50), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
 const INVTEMPERATURE, EXTERNALFIELD = 0.8, 0.1
 const REPRATE, MUTRATE, SELSTRENGTH = 10.0^5, 10.0^4, 1.
-const DELTAX, DELTATOFFSET = .5, 0.1
-const NITERATION, NSAMPLINGS, NTRIALS = Int32(10^3), Int32(50), Int32(2)
+const DELTAX, DELTATOFFSET = 1/3, 0.1
+const NITERATION, NSAMPLINGS, NTRIALS = Int32(5*10^3), Int32(50), Int32(2)
 
 # myFancyX = Float64[ i%(20*SYSTEMSIZE) <= 3*SYSTEMSIZE ? 1.5 : -3. for i in 1:2SYSTEMSIZE^2 ]
 # myFancyIsing = tVecGty{Vector{Float64}}(myFancyX)
 
 isingDTMCprm = tDTMCprm( NITERATION,NSAMPLINGS,NTRIALS )
 aIsingMGty = [ tIsingSigTransMGty(SYSTEMSIZE,INVTEMPERATURE,EXTERNALFIELD,isingDTMCprm) ]
-aIsingGty = [ tVecGty( [aIsingMGty[1]], rand(-4:.5:5,2SYSTEMSIZE^2) ) for i in 1:3NPOP ]
+aIsingGty = [ tVecGty( [aIsingMGty[1]], rand(-2:DELTAX:2,2SYSTEMSIZE^2) ) for i in 1:3NPOP ]
 
 isingEnv = tCompEnv([ [-10.0^10,-1.0], [10.0^10,1.0] ],SELSTRENGTH)
 isingEty = mEvoFunc.tEty{Float64}(REPRATE,MUTRATE,DELTATOFFSET,aIsingMGty[end].dX,DELTAX)
 
 isingPop = mEvoFunc.initLivingPop( NPOP,isingEty,isingEnv,aIsingMGty,aIsingGty )
-isingPop = tLivingPop( Int32[NPOP,NPOP,length(aIsingGty)],isingEty,isingEnv,aIsingMGty,aIsingGty )
+# isingPop = tLivingPop( Int32[NPOP,NPOP,length(aIsingGty)],isingEty,isingEnv,aIsingMGty,aIsingGty )
 
 # aIsingMGtyClone, aIsingGtyClone = read_aIsingSigTransGty( "",INVTEMPERATURE,EXTERNALFIELD )
 # isingPopClone = tLivingPop(
@@ -34,20 +34,15 @@ isingPop = tLivingPop( Int32[NPOP,NPOP,length(aIsingGty)],isingEty,isingEnv,aIsi
 
 aIsingData = tEvoData[]
 
-push!(aIsingData,tEvoData(NGEN))
-@time mEvoFunc.evolution!(isingPop,aIsingData[end],ubermode=true)
+for i in 1:NBATCHES
+	Fave = mean( [isingPop.aGty[i].pF[1] for i in 1:isingPop.pN[2]] )
+	push!( aIsingData, tEvoData(NGEN, Fave + ( 1. - ( Fave % 1 ) ) % (1/3) + .2, 1/3) )
+	@time mEvoFunc.evolution!(isingPop,aIsingData[end],ubermode=true)
+end
 
-mEvoFunc.write_aGty(isingPop, "test" * "#$(length(aIsingData))")
+push!(aIsingData[end].aLivingPop,deepcopy(isingPop))
 
-aAves = [ zeros(Float64,isingPop.aGty[1].pMetaGty[1].L,isingPop.aGty[1].pMetaGty[1].L) for i in isingEnv.idealInputOutput ]
-@time mEvoFunc.showPhenotype!(isingEnv,isingPop.aGty[1],aAves)
-# @time showPhenotype!(isingEnv,isingPopClone.aGty[2],aAves)
-# @time showPhenotype!(isingEnv,myFancyIsing,aAves)
-
-JijMat = Array{Float64}(undef,2isingPop.aGty[1].pMetaGty[1].L,2isingPop.aGty[1].pMetaGty[1].L)
-@time mEvoFunc.showGenotype!(isingPop.aGty[1],JijMat)
-# @time showGenotype!(isingPopClone.aGty[1],JijMat)
-# @time showGenotype!(myFancyIsing,JijMat)
+# mEvoFunc.write_aGty(isingPop, "corr_test") # * "#$(length(aIsingData))")
 
 # check upgrade
 # mEvoFunc.upgradeGtyX!(isingPop.aGty[1])

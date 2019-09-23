@@ -63,6 +63,8 @@ end
 # type: trivial environment
 struct tTrivialEnv <: atEnvironment end
 
+export tTrivialEnv
+
 # ===================
 # population dynamics types
 # ===================
@@ -89,18 +91,6 @@ tVecGty(pMGty::TpMGty,X::TX) where {TpMGty<:Vector{<:atMetaGenotype},TX<:Abstrac
 	tVecGty{TpMGty,TX}(pMGty,X,[0.0])
 
 # ===================
-# type: evolutionary dynamics data
-struct tEvoData
-	Ngen::Int32
-	growthFactor::Array{Float64,1}
-	aveFitness::Array{Float64,1}
-	mutationFactor::Array{Float64,1}
-end
-
-# initializer constructor
-tEvoData(Ngen::Int32) = tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen))
-
-# ===================
 # type: population
 struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,TaMGty<:Vector{<:atMetaGenotype},TaGty<:Vector{<:atGenotype}} <: atPopulation
 	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
@@ -109,6 +99,23 @@ struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,TaMGty<:Vector{<:atMetaGen
 	aMetaGty::TaMGty
 	aGty::TaGty
 end
+
+# ===================
+# type: evolutionary dynamics data
+struct tEvoData
+	Ngen::Int32
+	growthFactor::Array{Float64,1}
+	aveFitness::Array{Float64,1}
+	mutationFactor::Array{Float64,1}
+
+	pAveFt::Vector{Float64}
+	aveFtinc::Float64
+	aLivingPop::Vector{tLivingPop}
+end
+
+# initializer constructor
+tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) =
+	tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),[aveFt],aveFtinc,Array{tLivingPop}(undef,0))
 
 export tCompEnv, tEty, tVecGty, tEvoData, tLivingPop
 
@@ -146,5 +153,13 @@ tIsingSigTransMGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMont
 )
 
 export tIsingSigTransMGty
+
+# *******************
+# TRIVIAL STUFF
+# *******************
+
+struct tTrivialEty <: atEvotype end
+
+export tTrivialEty
 
 end
