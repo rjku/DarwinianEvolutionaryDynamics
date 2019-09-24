@@ -1,7 +1,7 @@
 
 using PyPlot, Statistics, LinearAlgebra
 
-iBatch, iPop, iIsing = 6, 1, 1
+iBatch, iPop, iIsing = 1, 1, 1
 
 const NITSTAT, NSMPLSTAT, NTRLSTAT = Int32(10^3), Int32(10^3), Int32(2)
 isingDTMCprmStat = tDTMCprm( NITSTAT, NSMPLSTAT, NTRLSTAT )
@@ -36,8 +36,10 @@ colorbar(); gcf()
 # SPIN STATISTICS
 # *******************
 
-aSpinAve = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L) for i in isingEnv.idealInputOutput ]
-aSpinCov = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2) for i in isingEnv.idealInputOutput ]
+aSpinAve = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L
+	) for i in isingEnv.idealInputOutput ]
+aSpinCov = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2
+	) for i in isingEnv.idealInputOutput ]
 sCor = Array{Float64}(undef, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2)
 
 @time mEvoFunc.getSpinStat!(isingEnv, aIsingData[iBatch].aLivingPop[iPop].aGty[1], aSpinAve, aSpinCov, sCor, isingDTMCprmStat)
@@ -50,9 +52,23 @@ figure(2.2); clf(); matshow(aSpinAve[2],cmap="Greys_r",vmin=-1,vmax=1);
 xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
 yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L); gcf()
 
-figure(2.3); clf(); matshow(aSpinCov[1],cmap="viridis"); colorbar(); gcf()
-figure(2.4); clf(); matshow(aSpinCov[2],cmap="viridis"); colorbar(); gcf()
-figure(2.5); clf(); matshow(sCor,cmap="viridis",vmin=-1,vmax=1); colorbar(); gcf()
+figure(2.3); clf(); matshow(aSpinCov[1],cmap="viridis"); colorbar();
+xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2-1,
+	1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2);
+yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2-1,
+	1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2); gcf()
+
+figure(2.4); clf(); matshow(aSpinCov[2],cmap="viridis"); colorbar();
+xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2-1,
+	1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2);
+yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2-1,
+	1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2); gcf()
+
+figure(2.5); clf(); matshow(sCor,cmap="viridis",vmin=-1,vmax=1); colorbar();
+xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2-1,
+	1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2);
+yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2-1,
+	1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2); gcf()
 
 
 # *******************
@@ -91,7 +107,7 @@ figure(4.1); clf(); hist(vcat( [aIsingData[iBatch].aLivingPop[iPop].aGty[i].X fo
 	collect(-4:DELTAX:4),density=true,rwidth=.9); gcf()
 # figure(4.2); clf(); hist(vcat( [broadcast(x->10^(x),isingPop.aGty[i].X) for i in 1:isingPop.pN[2]]... ),4,density=true,rwidth=.9); gcf()
 
-figure(5.1); clf(); matshow(XCor,cmap="viridis",vmin=-1,vmax=1);
+figure(5.1); clf(); matshow(XCor,cmap="viridis",vmin=-1,vmax=1); # title("Genotypic Variables Correlation");
 xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2-1,
 	1:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2);
 yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2-1,

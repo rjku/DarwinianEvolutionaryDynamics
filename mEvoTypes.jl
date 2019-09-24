@@ -45,7 +45,7 @@ export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPh
 struct tDTMCprm <: atMonteCarloPrm
 	Nsmpl::Int32							# number of Samples
 	Nmcsps::Int32							# number of Monte Carlo Steps per Sample
-	Ntrials::Int32
+	Ntrials::Int32							# number of trials for fitness evaluation
 end
 
 export tDTMCprm

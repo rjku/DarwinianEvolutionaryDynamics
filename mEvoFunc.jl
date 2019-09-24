@@ -21,49 +21,7 @@ function set_tEtyFactors(ety::tEty,dX::Int32)
 	ety.pMutFactor[1] = ety.mutRate/(2dX*ety.mutRate+ety.ΔtOffset)
 end
 
-# function write_
-
-# function: saving the genotypes for VecGty's
-function write_aGty(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atMetaGenotype},<:Vector{<:atVecGty}},fileTag::String)
-	open( "population_" * fileTag * ".dat", "w" ) do f
-		for i in 1:pop.pN[2]
-			print(f,pop.aGty[i].pMetaGty[1].dX,"\t")
-			for x in pop.aGty[i].X
-				print(f,x,"\t")
-			end
-			print(f,pop.aGty[i].pF[1],"\n")
-		end
-	end
-end
-
-# read population and spits metagenotype and genotype
-function read_aIsingSigTransGty( aGtyFileName::String,β::Float64,hi::Float64 )
-	matGty = readdlm(aGtyFileName)
-	Npop = size(matGty)[1]
-	sysSizes = Int32[]
-	L = zeros(Int32,Npop)
-
-	for i in 1:Npop
-		L[i] = Int32(sqrt(matGty[i,1]/2))
-		if !( L[i] in sysSizes )
-			push!(sysSizes,L[i])
-		end
-	end
-
-	aMGty = [ tIsingSigTransMGty(L,β,hi) for L in sysSizes ]
-	return aMGty, [ tVecGty(
-		[ aMGty[collect(1:length(sysSizes))[sysSizes .== L[i]][1]] ], matGty[i,2:1+Int32(matGty[i,1])] , Float64[matGty[i,end]] ) for i in 1:Npop ]
-end
-
-function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
-	open( "evoData_" * fileTag * ".dat", "w" ) do f
-		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.aveFitness[t],"\t") end, print(f,"\n")
-		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.growthFactor[t],"\t") end, print(f,"\n")
-		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.mutationFactor[t],"\t") end, print(f,"\n")
-	end
-end
-
-export tEty, initLivingPop, write_aGty, read_aIsingSigTransGty
+export tEty, initLivingPop
 
 
 # *********************************
@@ -307,7 +265,7 @@ function metropolis!(istMGty::tIsingSigTransMGty, Jij::Array{<:Real,1}, hi::Real
 	n = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
 	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
 
-	for is in 1:prms.Nsmpl
+	@showprogress 1 "Monte Carlo Dynamics Status: " for is in 1:prms.Nsmpl
 		for imcs in 1:prms.Nmcsps, ilp in 1:istMGty.L2
 			flipping!(istMGty,βJij,βhi,n)
 		end
@@ -366,17 +324,20 @@ function getSpinStat!(env::tCompEnv,gty::tVecGty,aSpinAve::Array{Array{Float64,2
 		for s in 1:gty.pMetaGty[1].L2
 			aSpinAve[i][s] = mean([aan[i][t][s] for t in 1:prms.Nsmpl])
 		end
+
 		for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
-			aSpinCov[i][si,sj] = myCov( [aan[i][t][si] for t in 1:prms.Nsmpl], aSpinAve[i][si],
-				[aan[i][t][sj] for t in 1:prms.Nsmpl], aSpinAve[i][sj] )
+			aSpinCov[i][si,sj] = myCov( [aan[i][t][si] for t in 1:prms.Nsmpl],aSpinAve[i][si],[aan[i][t][sj] for t in 1:prms.Nsmpl],aSpinAve[i][sj] )
+		end
+
+		for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
 			# aSpinCorFisherz[i][si,sj] = map( r -> log( (1 + r)/(1 - r) )/2, aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si]) )
 			aSpinCorFisherz[i][si,sj] = aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si])
 		end
 	end
 
-	for s1 in 1:gty.pMetaGty[1].L2, s2 in 1:gty.pMetaGty[1].L2
-		# sCor[s2,s1] = tanh( mean( [ aSpinCorFisherz[i][s2,s1] for i in 1:length(env.idealInputOutput)] ) )
-		sCor[s2,s1] = mean( [ aSpinCorFisherz[i][s2,s1] for i in 1:length(env.idealInputOutput)] )
+	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
+		# sCor[si,sj] = tanh( mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.idealInputOutput)] ) )
+		sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.idealInputOutput)] )
 	end
 end
 
@@ -390,12 +351,16 @@ end
 function getXStat!(pop::tLivingPop,XAve::Vector{Float64},XCov::Array{Float64,2},XCor::Array{Float64,2})
 	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dX, &, [ pop.aGty[i].pMetaGty[1].dX for i in 2:pop.pN[2] ] ) ||
 		throw(DimensionMismatch("inconsistent dimensions"))
+
 	for x in 1:pop.aGty[1].pMetaGty[1].dX
 		XAve[x] = mean( [pop.aGty[i].X[x] for i in 1:pop.pN[2]] )
 	end
 
 	for y in 1:pop.aGty[1].pMetaGty[1].dX, x in 1:pop.aGty[1].pMetaGty[1].dX
 		XCov[x,y] = myCov( [ pop.aGty[i].X[x] for i in 1:pop.pN[2] ], XAve[x], [ pop.aGty[i].X[y] for i in 1:pop.pN[2] ], XAve[y] )
+	end
+
+	for y in 1:pop.aGty[1].pMetaGty[1].dX, x in 1:pop.aGty[1].pMetaGty[1].dX
 		XCor[x,y] = XCov[x,y]/sqrt(XCov[x,x]*XCov[y,y])
 	end
 end
@@ -403,12 +368,16 @@ end
 function getJijStat!(pop::tLivingPop,JijAve::Vector{Float64},JijCov::Array{Float64,2},JijCor::Array{Float64,2})
 	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dX, &, [ pop.aGty[i].pMetaGty[1].dX for i in 2:pop.pN[2] ] ) ||
 		throw(DimensionMismatch("inconsistent dimensions"))
+
 	for x in 1:pop.aGty[1].pMetaGty[1].dX
 		JijAve[x] = mean( [ 10^pop.aGty[i].X[x] for i in 1:pop.pN[2]] )
 	end
 
-	for x in 1:pop.aGty[1].pMetaGty[1].dX, y in 1:pop.aGty[1].pMetaGty[1].dX
+	for y in 1:pop.aGty[1].pMetaGty[1].dX, x in 1:pop.aGty[1].pMetaGty[1].dX
 		JijCov[x,y] = myCov( [ 10^pop.aGty[i].X[x] for i in 1:pop.pN[2] ], JijAve[x], [ 10^pop.aGty[i].X[y] for i in 1:pop.pN[2] ], JijAve[y] )
+	end
+
+	for y in 1:pop.aGty[1].pMetaGty[1].dX, x in 1:pop.aGty[1].pMetaGty[1].dX
 		JijCor[x,y] = JijCov[x,y]/sqrt(JijCov[x,x]*JijCov[y,y])
 	end
 end
@@ -425,6 +394,90 @@ end
 
 export metropolis, metropolis!, fitness, fitness!, getSpinStat!, showJij!, getXStat!, getJijStat!
 
+
+# *******************
+# I/O FUNCTIONS
+# *******************
+
+# function: saving the Discrete Time Monte Carlo parameters
+function write_DTMCprm(prms::tDTMCprm,fileTag::String)
+	open( fileTag * "_DTMCprm" * ".dat", "w" ) do f
+		print(f, prms.Nsmpl, "\t")
+		print(f, prms.Nmcsps, "\t")
+		print(f, prms.Ntrials, "\t")
+	end
+end
+
+# function: saving the MetaGenotype of Ising systmes
+function write_MetaGty(metaGty::atIsingMetaGty,fileTag::String)
+	open( fileTag * "_MetaGty" * ".dat", "w" ) do f
+		print(f, metaGty.β, "\t")
+		print(f, metaGty.he, "\t")
+	end
+end
+
+# function: saving the genotypes
+function write_aGty(aGty::Vector{<:atGenotype},Npop::Int32,fileTag::String)
+	length(aGty) >= Npop || throw(DimensionMismatch("population size exceeds Npop variable"))
+	open( fileTag * "_aGty" * ".dat", "w" ) do f
+		for i in 1:Npop
+			print(f, aGty[i].pMetaGty[1].dX, "\t")
+			for x in aGty[i].X
+				print(f, x, "\t")
+			end
+			print(f, aGty[i].pF[1], "\n")
+		end
+	end
+end
+
+# function: saving the ising population
+function write_tLivingPop(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atIsingMetaGty},<:Vector{<:atGenotype}},fileTag::String)
+	write_DTMCprm(pop.aGty[1].pMetaGty[1].prms,fileTag)
+	write_MetaGty(pop.aGty[1].pMetaGty[1],fileTag)
+	write_aGty(pop.aGty,pop.pN[2],fileTag)
+end
+
+# function: saving the evolutionary data
+function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
+	open( "evoData_" * fileTag * ".dat", "w" ) do f
+		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.aveFitness[t],"\t") end, print(f,"\n")
+		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.growthFactor[t],"\t") end, print(f,"\n")
+		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.mutationFactor[t],"\t") end, print(f,"\n")
+	end
+end
+
+# to do: saving evolution parameters
+
+export write_DTMCprm, write_MetaGty, write_aGty, write_tLivingPop, write_tEvoData
+
+# read metagenotype
+function read_MetaGty(L::Integer,prms::atMonteCarloPrm,fileTag::String)::atIsingMetaGty
+	metaGtyMat = readdlm( fileTag * "_MetaGty" * ".dat" )
+	return tIsingSigTransMGty(L,metaGtyMat[1],metaGtyMat[2],prms)
+end
+
+# read population and spits metagenotype and genotype
+function read_aIsingSigTransGty(prms::atMonteCarloPrm,fileTag::String)
+	gtyMat = readdlm( fileTag * "_aGty" * ".dat" )
+	Npop = size(gtyMat)[1]
+
+	sysSizes = Int32[]
+	L = zeros(Int32,Npop)
+
+	for i in 1:Npop
+		L[i] = Int32( sqrt(gtyMat[i,1]/2) )
+		if !( L[i] in sysSizes )
+			push!(sysSizes,L[i])
+		end
+	end
+
+	aMetaGty = [ read_MetaGty(L,prms,fileTag) for L in sysSizes ]
+	aGty = [ tVecGty([aMetaGty[collect(1:length(sysSizes))[sysSizes .== L[i]][1]]],
+		gtyMat[i,2:1+Int32(gtyMat[i,1])] , Float64[gtyMat[i,end]] ) for i in 1:Npop ]
+	return aMetaGty, aGty, Npop
+end
+
+export read_aIsingSigTransGty
 
 # *******************
 # TRIVIAL
