@@ -6,21 +6,22 @@ import mEvoFunc
 # *   ISING TEST	*
 # *******************
 
-const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 1, Int32(50), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
+const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 4, Int32(80), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
 const INVTEMPERATURE, EXTERNALFIELD = 0.8, 0.1
 const REPRATE, MUTRATE, SELSTRENGTH = 10.0^5, 10.0^4, 1.
-const DELTAX, DELTATOFFSET = 1/3, 0.1
-const NITERATION, NSAMPLINGS, NTRIALS = Int32(10^3), Int32(100), Int32(2)
+const DELTAG, DELTATOFFSET = 1/3, 0.1
+const NITERATION, NSAMPLINGS, NTRIALS = Int32(10^3), Int32(10^2), Int32(2)
 
-# myFancyX = Float64[ i%(20*SYSTEMSIZE) <= 3*SYSTEMSIZE ? 1.5 : -3. for i in 1:2SYSTEMSIZE^2 ]
-# myFancyIsing = tVecGty{Vector{Float64}}(myFancyX)
+# myFancyG = Float64[ i%(20*SYSTEMSIZE) <= 3*SYSTEMSIZE ? 1.5 : -3. for i in 1:2SYSTEMSIZE^2 ]
+# myFancyIsing = tVecGty{Vector{Float64}}(myFancyG)
 
 isingDTMCprm = tDTMCprm( NITERATION,NSAMPLINGS,NTRIALS )
 aIsingMGty = [ tIsingSigTransMGty(SYSTEMSIZE,INVTEMPERATURE,EXTERNALFIELD,isingDTMCprm) ]
-aIsingGty = [ tVecGty( [aIsingMGty[1]], rand(-2:DELTAX:2,2SYSTEMSIZE^2) ) for i in 1:3NPOP ]
+# aIsingGty = [ tVecGty( [aIsingMGty[1]], rand(-2:DELTAG:2,2SYSTEMSIZE^2) ) for i in 1:3NPOP ]
+aIsingGty = [ tAlphaGty( [aIsingMGty[1]], rand(-2:DELTAG:2,2SYSTEMSIZE^2), collect(-2:DELTAG:2) ) for i in 1:3NPOP ]
 
 isingEnv = tCompEnv([ [-10.0^10,-1.0], [10.0^10,1.0] ],SELSTRENGTH)
-isingEty = mEvoFunc.tEty{Float64}(REPRATE,MUTRATE,DELTATOFFSET,aIsingMGty[end].dX,DELTAX)
+isingEty = mEvoFunc.tEty{Float64}(REPRATE,MUTRATE,DELTATOFFSET,aIsingMGty[end].dG,DELTAG)
 
 isingPop = mEvoFunc.initLivingPop( NPOP,isingEty,isingEnv,aIsingMGty,aIsingGty )
 # isingPop = tLivingPop( Int32[NPOP,NPOP,length(aIsingGty)],isingEty,isingEnv,aIsingMGty,aIsingGty )
@@ -34,10 +35,10 @@ end
 
 push!( aIsingData[end].aLivingPop,deepcopy(isingPop) )
 
-mEvoFunc.write_tLivingPop(isingPop, "test_#1") # * "#$(length(aIsingData))")
+# mEvoFunc.write_tLivingPop(isingPop, "test_#2") # * "#$(length(aIsingData))")
 
 # check upgrade
-# mEvoFunc.upgradeGtyX!(isingPop.aGty[1])
+# mEvoFunc.upgradeGtyG!(isingPop.aGty[1],1/3)
 # push!( isingPop.aMetaGty,tIsingSigTransMGty(
 # 	isingPop.aGty[1].pMetaGty[1].L+Int32(2), isingPop.aGty[1].pMetaGty[1].β, isingPop.aGty[1].pMetaGty[1].he, isingPop.aGty[1].pMetaGty[1].prms
 # 	))
@@ -50,13 +51,13 @@ mEvoFunc.write_tLivingPop(isingPop, "test_#1") # * "#$(length(aIsingData))")
 
 # const NGEN, NPOP, DGTY = Int32(2000), Int32(50), 2(30^2)
 # const REPRATE, MUTRATE = 10000., .1
-# const DELTAX, DELTATOFFSET = 0.01, 1.0
+# const DELTAG, DELTATOFFSET = 0.01, 1.0
 #
 # trivialEty = tTrivialEty()
 # trivialEnv = tTrivialEnv()
 # aTrivialGty = [ tVecGty{Array{Float64,1}}(zeros(Float64,DGTY)) for i in 1:3NPOP ]
 # trivialPop = tLivingPop{Float64,tTrivialEty,tTrivialEnv,Array{tVecGty,1}}(
-# 	Int32(NPOP),trivialEty,trivialEnv,aTrivialGty,REPRATE,MUTRATE,DELTAX,DELTATOFFSET )
+# 	Int32(NPOP),trivialEty,trivialEnv,aTrivialGty,REPRATE,MUTRATE,DELTAG,DELTATOFFSET )
 #
 # trivialData = tEvoData(NGEN)
 # @time evolution!(trivialPop, trivialData, ubermode=true)

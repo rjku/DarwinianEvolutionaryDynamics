@@ -28,12 +28,13 @@ abstract type atEvotype end
 abstract type atMetaGenotype end
 abstract type atGenotype end
 
-abstract type atPhenotype end		# T relates to the representation of the phenotypic variables
+abstract type atPhenotype end
 
 abstract type atIsingMetaGty <: atMetaGenotype end
 abstract type atVecGty <: atGenotype end
+abstract type atSystemGty{Tmgty} <: atGenotype end		# genotypes endowed with a pointer to a atMetaGenotype: pMetaGty
 
-export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atVecGty
+export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atVecGty, atSystemGty
 
 
 # *******************
@@ -66,8 +67,70 @@ struct tTrivialEnv <: atEnvironment end
 export tTrivialEnv
 
 # ===================
+# GENOTYPES
+# ===================
+
+# type: vectorial genotype
+struct tVecGty{TpMGty<:Vector{<:atMetaGenotype},Tx<:AbstractVector} <: atVecGty
+	pMetaGty::TpMGty
+	pdG::Vector{Float64}
+	G::Tx
+	pF::Array{Float64,1}
+end
+
+# constructor: undefined fitness
+tVecGty(pMGty::TpMGty,G::TX) where {TpMGty<:Vector{<:atMetaGenotype},TX<:AbstractVector} =
+	tVecGty{TpMGty,TX}(pMGty,[length(G)],G,[0.0])
+
+# ===================
+# type: genotype with additive genotypic variations
+struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
+	pMetaGty::Tpmgty
+	pdG::Vector{Int32}
+	G::Tag
+	Δg::Tg
+	pF::Vector{Float64}
+end
+
+# constructor: undefined fitness
+tAddGty(pMGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
+	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,[length(G)],G,Δg,[0.0])
+
+# ===================
+# type: genotype with multiplicative genotypic variations
+struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
+	pMetaGty::Tpmgty
+	pdG::Vector{Int32}
+	G::Tag
+	δg::Tg
+	pF::Vector{Float64}
+end
+
+# constructor: undefined fitness
+tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
+	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,[length(G)],G,δg,[0.0])
+
+# ===================
+# type: genotype with alphabetical (not unbounded) genotypic variables
+struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
+	pMetaGty::Tpmgty
+	pdG::Vector{Int32}
+	G::Tag
+	pdg::Vector{Int32}
+	g::Tag
+	pF::Vector{Float64}
+end
+
+# constructor: undefined fitness
+tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
+	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,[length(g)],g,[0.0])
+
+export tVecGty, tAddGty, tMltGty, tAlphaGty
+
+# ===================
 # population dynamics types
 # ===================
+
 # type: evotype
 struct tEty{Tx<:Number} <: atEvotype
 	repRate::Float64
@@ -79,25 +142,13 @@ struct tEty{Tx<:Number} <: atEvotype
 end
 
 # ===================
-# type: vectorial genotype
-struct tVecGty{TpMGty<:Vector{<:atMetaGenotype},Tx<:AbstractVector} <: atVecGty
-	pMetaGty::TpMGty
-	X::Tx
-	pF::Array{Float64,1}
-end
-
-# constructor: undefined fitness
-tVecGty(pMGty::TpMGty,X::TX) where {TpMGty<:Vector{<:atMetaGenotype},TX<:AbstractVector} =
-	tVecGty{TpMGty,TX}(pMGty,X,[0.0])
-
-# ===================
 # type: population
-struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,TaMGty<:Vector{<:atMetaGenotype},TaGty<:Vector{<:atGenotype}} <: atPopulation
+struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,Tamgty<:Vector{<:atMetaGenotype},Tagty<:Vector{<:atGenotype}} <: atPopulation
 	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
 	ety::Tety
 	env::Tenv
-	aMetaGty::TaMGty
-	aGty::TaGty
+	aMetaGty::Tamgty
+	aGty::Tagty
 end
 
 # ===================
@@ -117,13 +168,13 @@ end
 tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) =
 	tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),[aveFt],aveFtinc,Array{tLivingPop}(undef,0))
 
-export tCompEnv, tEty, tVecGty, tEvoData, tLivingPop
+export tCompEnv, tEty, tEvoData, tLivingPop
 
 # ===================
 # type: ising signal transduction
 struct tIsingSigTransMGty{Tprm<:atMonteCarloPrm} <: atIsingMetaGty
 	L::Int32				# system size
-	dX::Int32				# interaction matrix number of entries
+	dG::Int32				# interaction matrix number of entries
 
 	β::Float64 				# inverse temperature [ critical inverse temperature ≃ 1/2.3 ≃ 0.43 ]
 	he::Float64 			# global external field H

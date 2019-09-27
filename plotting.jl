@@ -24,7 +24,7 @@ JijMat = Array{Float64}(undef, 2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMet
 
 # my_cmap=get_cmap("YlOrRd")
 figure(3); clf(); my_cmap=get_cmap("Greens"); my_cmap.set_under("Black"); my_cmap.set_over("White")
-matshow(JijMat,cmap=my_cmap,vmin=0,vmax=10^(maximum(aIsingData[iBatch].aLivingPop[iPop].aGty[1].X))+.1);
+matshow(JijMat,cmap=my_cmap,vmin=0,vmax=10^(maximum(aIsingData[iBatch].aLivingPop[iPop].aGty[1].G))+.1);
 xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1,
 	1:Int32(aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].halfL):aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
 yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1,
@@ -75,9 +75,9 @@ yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iB
 # Jij STATISTICS
 # *******************
 
-JijAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX)
-JijCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX)
-JijCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX)
+JijAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
+JijCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
+JijCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
 
 mEvoFunc.getJijStat!(aIsingData[iBatch].aLivingPop[iPop], JijAve, JijCov, JijCor)
 
@@ -97,23 +97,25 @@ figure(6.1); clf(); hist( ev, 20, density=true, rwidth=.9); gcf()
 # GENOTYPE STATISTICS
 # *******************
 
-XAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX)
-XCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX)
-XCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dX)
+GAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
+GCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
+GCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
 
-mEvoFunc.getXStat!(aIsingData[iBatch].aLivingPop[iPop], XAve, XCov, XCor)
+mEvoFunc.getGStat!(aIsingData[iBatch].aLivingPop[iPop], GAve, GCov, GCor)
 
-figure(4.1); clf(); hist(vcat( [aIsingData[iBatch].aLivingPop[iPop].aGty[i].X for i in 1:aIsingData[iBatch].aLivingPop[iPop].pN[2]]... ),
-	collect(-4:DELTAX:4),density=true,rwidth=.9); gcf()
-# figure(4.2); clf(); hist(vcat( [broadcast(x->10^(x),isingPop.aGty[i].X) for i in 1:isingPop.pN[2]]... ),4,density=true,rwidth=.9); gcf()
+# figure(4.1); clf(); hist(vcat( [aIsingData[iBatch].aLivingPop[iPop].aGty[i].G for i in 1:aIsingData[iBatch].aLivingPop[iPop].pN[2]]... ),
+# 	collect(-2:DELTAG:2),density=true,rwidth=.9); gcf()
+figure(4.1); clf(); hist(vcat( [aIsingData[iBatch].aLivingPop[iPop].aGty[i].G for i in 1:aIsingData[iBatch].aLivingPop[iPop].pN[2]]... ),
+	aIsingData[iBatch].aLivingPop[iPop].aGty[1].g,density=true,rwidth=.9); gcf()
+# figure(4.2); clf(); hist(vcat( [broadcast(x->10^(x),isingPop.aGty[i].G) for i in 1:isingPop.pN[2]]... ),4,density=true,rwidth=.9); gcf()
 
-figure(5.1); clf(); matshow(XCor,cmap="viridis",vmin=-1,vmax=1); # title("Genotypic Variables Correlation");
+figure(5.1); clf(); matshow(GCor,cmap="viridis",vmin=-1,vmax=1); # title("Genotypic Variables Correlation");
 xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2-1,
 	1:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2);
 yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2-1,
 	1:aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].L2);
 colorbar(); gcf()
 
-evX = eigvals(Symmetric(XCov))
+evG = eigvals(Symmetric(GCov))
 
-figure(6.1); clf(); hist( evX, 30, density=true, rwidth=.9 ); gcf()
+figure(6.1); clf(); hist( evG, 30, density=true, rwidth=.9 ); gcf()
