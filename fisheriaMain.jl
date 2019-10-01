@@ -6,10 +6,10 @@ import mEvoFunc
 # *   ISING TEST	*
 # *******************
 
-const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 4, Int32(80), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
+const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 1, Int32(20), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
 const INVTEMPERATURE, EXTERNALFIELD = 0.8, 0.1
-const REPRATE, MUTRATE, SELSTRENGTH = 10.0^5, 10.0^4, 1.
-const DELTAG, DELTATOFFSET = 1/3, 0.1
+const REPRATE, MUTRATE, SELSTRENGTH = 10.0^7, 10.0^3, 1.
+const DELTAG, DELTATOFFSET = 1/3, 0.01
 const NITERATION, NSAMPLINGS, NTRIALS = Int32(10^3), Int32(10^2), Int32(2)
 
 # myFancyG = Float64[ i%(20*SYSTEMSIZE) <= 3*SYSTEMSIZE ? 1.5 : -3. for i in 1:2SYSTEMSIZE^2 ]
@@ -21,7 +21,7 @@ aIsingMGty = [ tIsingSigTransMGty(SYSTEMSIZE,INVTEMPERATURE,EXTERNALFIELD,isingD
 aIsingGty = [ tAlphaGty( [aIsingMGty[1]], rand(-2:DELTAG:2,2SYSTEMSIZE^2), collect(-2:DELTAG:2) ) for i in 1:3NPOP ]
 
 isingEnv = tCompEnv([ [-10.0^10,-1.0], [10.0^10,1.0] ],SELSTRENGTH)
-isingEty = mEvoFunc.tEty{Float64}(REPRATE,MUTRATE,DELTATOFFSET,aIsingMGty[end].dG,DELTAG)
+isingEty = mEvoFunc.tEty(REPRATE,MUTRATE,DELTATOFFSET,aIsingGty[1])
 
 isingPop = mEvoFunc.initLivingPop( NPOP,isingEty,isingEnv,aIsingMGty,aIsingGty )
 # isingPop = tLivingPop( Int32[NPOP,NPOP,length(aIsingGty)],isingEty,isingEnv,aIsingMGty,aIsingGty )

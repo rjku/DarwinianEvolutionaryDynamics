@@ -31,10 +31,9 @@ abstract type atGenotype end
 abstract type atPhenotype end
 
 abstract type atIsingMetaGty <: atMetaGenotype end
-abstract type atVecGty <: atGenotype end
 abstract type atSystemGty{Tmgty} <: atGenotype end		# genotypes endowed with a pointer to a atMetaGenotype: pMetaGty
 
-export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atVecGty, atSystemGty
+export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atSystemGty
 
 
 # *******************
@@ -70,19 +69,6 @@ export tTrivialEnv
 # GENOTYPES
 # ===================
 
-# type: vectorial genotype
-struct tVecGty{TpMGty<:Vector{<:atMetaGenotype},Tx<:AbstractVector} <: atVecGty
-	pMetaGty::TpMGty
-	pdG::Vector{Float64}
-	G::Tx
-	pF::Array{Float64,1}
-end
-
-# constructor: undefined fitness
-tVecGty(pMGty::TpMGty,G::TX) where {TpMGty<:Vector{<:atMetaGenotype},TX<:AbstractVector} =
-	tVecGty{TpMGty,TX}(pMGty,[length(G)],G,[0.0])
-
-# ===================
 # type: genotype with additive genotypic variations
 struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
@@ -96,7 +82,6 @@ end
 tAddGty(pMGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
 	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,[length(G)],G,Δg,[0.0])
 
-# ===================
 # type: genotype with multiplicative genotypic variations
 struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
@@ -110,7 +95,6 @@ end
 tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
 	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,[length(G)],G,δg,[0.0])
 
-# ===================
 # type: genotype with alphabetical (not unbounded) genotypic variables
 struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
@@ -125,21 +109,28 @@ end
 tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
 	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,[length(g)],g,[0.0])
 
-export tVecGty, tAddGty, tMltGty, tAlphaGty
+export tAddGty, tMltGty, tAlphaGty
 
 # ===================
 # population dynamics types
 # ===================
 
 # type: evotype
-struct tEty{Tx<:Number} <: atEvotype
+struct tEty <: atEvotype
 	repRate::Float64
 	mutRate::Float64
 	ΔtOffset::Float64
 	pRepFactor::Vector{Float64}
 	pMutFactor::Vector{Float64}
-	Xvar::Tx
 end
+
+# costructor. tEty
+tEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::atGenotype) =
+	tEty( repRate,mutRate,ΔtOffset,[repRate/(2gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(2gty.pdG[1]*mutRate+ΔtOffset)] )
+
+# costructor. tEty
+tEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::tAlphaGty) =
+	tEty( repRate,mutRate,ΔtOffset,[repRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)] )
 
 # ===================
 # type: population
