@@ -1,23 +1,22 @@
 
 using PyPlot, Statistics, LinearAlgebra
 
-iBatch, iPop, iIsing = 1, 1, 1
-
-const NITSTAT, NSMPLSTAT, NTRLSTAT = Int32(10^3), Int32(10^3), Int32(2)
-isingDTMCprmStat = tDTMCprm( NITSTAT, NSMPLSTAT, NTRLSTAT )
-
 # *******************
 # POPULATION DYNAMICS
 # *******************
 
-figure(1.1); clf(); title("Average Fitness"); plot(collect(1:NGEN),aIsingData[iBatch].aveFitness); gcf()
-figure(1.2); clf(); title("Growth Factor"); plot(collect(1:NGEN),aIsingData[iBatch].growthFactor); gcf()
-figure(1.3); clf(); title("Mutation Factor"); plot(collect(1:NGEN),aIsingData[iBatch].mutationFactor); gcf()
+iBatch, iPop, iIsing = 3, 1, 1
+
+figure(1.1); clf(); title("Average Fitness"); plot( vcat([aIsingData[iBtc].aveFitness for iBtc in 1:iBatch]...) ); gcf()
+figure(1.2); clf(); title("Growth Factor"); plot( vcat([aIsingData[iBtc].growthFactor for iBtc in 1:iBatch]...) ); gcf()
+figure(1.3); clf(); title("Mutation Factor"); plot( vcat([aIsingData[iBtc].mutationFactor for iBtc in 1:iBatch]...) ); gcf()
 
 
 # *******************
 # GENOTYPE CHARACTERISTICS
 # *******************
+
+iBatch, iPop, iIsing = 4, 1, 1
 
 JijMat = Array{Float64}(undef, 2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, 2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L)
 @time mEvoFunc.showJij!(aIsingData[iBatch].aLivingPop[iPop].aGty[1], JijMat)
@@ -35,6 +34,9 @@ colorbar(); gcf()
 # *******************
 # SPIN STATISTICS
 # *******************
+
+const NITSTAT, NSMPLSTAT, NTRLSTAT = Int32(10^3), Int32(10^2), Int32(2)
+isingDTMCprmStat = tDTMCprm( NITSTAT, NSMPLSTAT, NTRLSTAT )
 
 aSpinAve = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L
 	) for i in isingEnv.idealInputOutput ]
@@ -75,6 +77,8 @@ yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:aIsingData[iB
 # Jij STATISTICS
 # *******************
 
+iBatch, iPop, iIsing = 4, 1, 1
+
 JijAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
 JijCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
 JijCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
@@ -97,9 +101,11 @@ figure(6.1); clf(); hist( ev, 20, density=true, rwidth=.9); gcf()
 # GENOTYPE STATISTICS
 # *******************
 
-GAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
-GCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
-GCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].dG)
+iBatch, iPop, iIsing = 4, 1, 1
+
+GAve = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].dG)
+GCov = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].dG)
+GCor = zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].dG, aIsingData[iBatch].aLivingPop[iPop].aGty[iIsing].pMetaGty[1].dG)
 
 mEvoFunc.getGStat!(aIsingData[iBatch].aLivingPop[iPop], GAve, GCov, GCor)
 
@@ -118,4 +124,4 @@ colorbar(); gcf()
 
 evG = eigvals(Symmetric(GCov))
 
-figure(6.1); clf(); hist( evG, 30, density=true, rwidth=.9 ); gcf()
+figure(6.1); clf(); hist( broadcast(x -> log(x), evG), 40, density=true, rwidth=.9 ); gcf()

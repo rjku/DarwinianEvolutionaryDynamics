@@ -109,7 +109,20 @@ end
 tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
 	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,[length(g)],g,[0.0])
 
-export tAddGty, tMltGty, tAlphaGty
+# type: genotype with continuous bounded genotypic variables
+struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
+	pMetaGty::Tpmgty
+	pdG::Vector{Int32}
+	G::Tag
+	gbounds::Tag
+	pF::Vector{Float64}
+end
+
+# constructor: undefined fitness
+tCntGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
+	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,gbounds,[0.0])
+
+export tAddGty, tMltGty, tAlphaGty, tCntGty
 
 # ===================
 # population dynamics types
@@ -152,12 +165,14 @@ struct tEvoData
 
 	pAveFt::Vector{Float64}
 	aveFtinc::Float64
+
+	aGen::Vector{Int32}
 	aLivingPop::Vector{tLivingPop}
 end
 
 # initializer constructor
-tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) =
-	tEvoData(Ngen,Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),[aveFt],aveFtinc,Array{tLivingPop}(undef,0))
+tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(Ngen,Array{Float64}(undef,Ngen),
+	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),[aveFt],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
 
 export tCompEnv, tEty, tEvoData, tLivingPop
 

@@ -1,12 +1,12 @@
 
-using Revise, mEvoTypes, Statistics
+using Revise, mEvoTypes, Statistics, BenchmarkTools
 import mEvoFunc
 
 # *******************
 # *   ISING TEST	*
 # *******************
 
-const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 1, Int32(20), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
+const NBATCHES, NGEN, NPOP, SYSTEMSIZE = 4, Int32(25), Int32(100), Int32(6)			# 100, 30, 30 -> 15'
 const INVTEMPERATURE, EXTERNALFIELD = 0.8, 0.1
 const REPRATE, MUTRATE, SELSTRENGTH = 10.0^7, 10.0^3, 1.
 const DELTAG, DELTATOFFSET = 1/3, 0.01

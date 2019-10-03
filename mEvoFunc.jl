@@ -3,6 +3,11 @@ module mEvoFunc
 using mEvoTypes, Random, Statistics, Base.Threads, DelimitedFiles, Dates, Distances, ProgressMeter
 import Future
 
+# threads random generators initialization
+const THREADRNG = let m = MersenneTwister(1)
+            [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
+        end;
+
 const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS = .001, .95, 3.0
 
 # initializer constructor for discrete time evolution. Same MetaGenotype for all.
@@ -31,17 +36,18 @@ export initLivingPop
 # | PROPER EVOLUTIONARY FUNCTIONS \
 # *********************************
 
-# replication function: ( living population, replication factor, Marsenne Twister ) → replicated population
-function replication!(pop::tLivingPop,R::Vector{MersenneTwister})
+# function. population replication!
+function replication!(pop::tLivingPop)
 	G = zeros(Int32,pop.pN[2])
-	# @threads
-	for i in 1:pop.pN[2]
-		Kr::Float64 = pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]
-		ipKr::Int32 = trunc(Int32,Kr)
+	Kr = Vector{Float64}(undef,nthreads())
+	ipKr = Vector{Int32}(undef,nthreads())
 
-		G[i] = rand(R[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr
-		# G::Int64 = rand() < Kr - ipKr ? ipKr + 1 : ipKr
+	@threads for i in 1:pop.pN[2]
+		Kr[threadid()] = pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]
+		ipKr[threadid()] = trunc(Int32,Kr[threadid()])
+		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
+
 	for i in 1:pop.pN[2]
 		for inew in 1:G[i]
 			pop.pN[1] += 1
@@ -53,15 +59,15 @@ function replication!(pop::tLivingPop,R::Vector{MersenneTwister})
 			end
 		end
 	end
-	# returning growth factor
+
 	return log(pop.pN[1]/pop.pN[2])
 end
 
-function blindMutation!(gty::tAddGty,mutProb::Float64,R::Vector{MersenneTwister})
+function blindMutation!(gty::tAddGty,mutProb::Float64)
 	Pmut = 2gty.pdG[1]*mutProb
 	Pmut <= 1 || throw("probability of mutation exceeds 1")
 
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
+	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
 	if r <= Pmut
 		while cumProb < r
 			ig += 1
@@ -74,11 +80,11 @@ function blindMutation!(gty::tAddGty,mutProb::Float64,R::Vector{MersenneTwister}
 	end
 end
 
-function blindMutation!(gty::tMltGty,mutProb::Float64,R::Vector{MersenneTwister})
+function blindMutation!(gty::tMltGty,mutProb::Float64)
 	Pmut = 2gty.pdG[1]*mutProb
 	Pmut <= 1 || throw("probability of mutation exceeds 1")
 
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
+	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
 	if r <= Pmut
 		while cumProb < r
 			ig += 1
@@ -91,11 +97,30 @@ function blindMutation!(gty::tMltGty,mutProb::Float64,R::Vector{MersenneTwister}
 	end
 end
 
-function blindMutation!(gty::tAlphaGty,mutProb::Float64,R::Vector{MersenneTwister})
+function blindMutation!(gty::tAlphaGty,mutProb::Float64)
 	Pmut = gty.pdG[1]*gty.pdg[1]*mutProb
 	Pmut <= 1 || throw("probability of mutation exceeds 1")
 
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
+	# cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
+	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
+	if r <= Pmut
+		while cumProb < r
+			ig += 1
+			cumProb += mutProb
+		end
+		gty.G[ ig % gty.pdG[1] + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
+		return Int32(1)
+	else
+		return Int32(0)
+	end
+end
+
+function blindMutation!(gty::tAlphaGty,mutProb::Float64)
+	Pmut = gty.pdG[1]*gty.pdg[1]*mutProb
+	Pmut <= 1 || throw("probability of mutation exceeds 1")
+
+	# cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
+	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
 	if r <= Pmut
 		while cumProb < r
 			ig += 1
@@ -109,14 +134,13 @@ function blindMutation!(gty::tAlphaGty,mutProb::Float64,R::Vector{MersenneTwiste
 end
 
 # function. effective mutation: blindly mutate the population's genotype according to the effective dynamical mutation rate
-function effMutation!(pop::tLivingPop,R::Vector{MersenneTwister})
-	Nmutations::Int32 = 0
-	# Nmutations = Atomic{Int32}(0) # @threads
+function effMutation!(pop::tLivingPop)
+	Nmutations = zeros(Int32,nthreads())
 	@threads for i in 1:pop.pN[1]
-		Nmutations += blindMutation!(pop.aGty[i], pop.ety.pMutFactor[1]/(1+pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]), R)
+		Nmutations[threadid()] += blindMutation!(pop.aGty[i], pop.ety.pMutFactor[1]/(1+pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]))
 		fitness!(pop.env,pop.aGty[i])
 	end
-	return Nmutations/pop.pN[1] 	# normalized number of mutations
+	return sum(Nmutations)/pop.pN[1] 	# normalized number of mutations
 end
 
 # function. effective selection: pruning of the population
@@ -129,7 +153,7 @@ function effSelection!(pop::tLivingPop, ubermode::Bool)
 		# sort!(pop.aGty, by= x -> x.pF[1], rev=true)
 	else
 		# selection with replacement of individuals
-		survivedGty = rand(1:pop.pN[1],pop.pN[2])
+		survivedGty = rand(THREADRNG[threadid()],1:pop.pN[1],pop.pN[2])
 	end
 	for i in 1:pop.pN[2]
 		pop.aGty[i] = popGtyRef[survivedGty[i]]
@@ -149,11 +173,11 @@ function newg!(gty::tAddGty{<:atIsingMetaGty})
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
 		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
-			Gref[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L] + rand(-1:1)*gty.Δg
+			Gref[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L] + rand(THREADRNG[threadid()],-1:1)*gty.Δg
 	end
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
 		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
-			Gref[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L] + rand(-1:1)*gty.Δg
+			Gref[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L] + rand(THREADRNG[threadid()],-1:1)*gty.Δg
 	end
 end
 
@@ -161,10 +185,10 @@ end
 function newg!(gty::tAlphaGty{<:atIsingMetaGty})
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
-		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(gty.g)
+		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
 	end
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
-		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(gty.g)
+		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
 	end
 	# there are a couple of connection missing in this routine
 end
@@ -211,22 +235,23 @@ end
 
 # function: genetic evolution
 function evolution!(pop::tLivingPop,evo::tEvoData; ubermode::Bool=false)
-	R = let m = MersenneTwister(1)
-	        [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
-	    end;
+
+	push!(evo.aLivingPop,deepcopy(pop))
+	push!(evo.aGen,1)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
-		evo.growthFactor[gen] = replication!(pop,R)
-		evo.mutationFactor[gen] = effMutation!(pop,R)
-		effSelection!(pop,ubermode)
-		evoUpgrade!(pop)
 		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
-
 		if evo.aveFitness[gen] >= evo.pAveFt[1]
 			push!(evo.aLivingPop,deepcopy(pop))
+			push!(evo.aGen,gen)
 			evo.pAveFt[1] += evo.aveFtinc
 			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.aveFitness[gen] )
 		end
+
+		evo.growthFactor[gen] = replication!(pop)
+		evo.mutationFactor[gen] = effMutation!(pop)
+		effSelection!(pop,ubermode)
+		evoUpgrade!(pop)
 	end
 end
 
@@ -241,17 +266,18 @@ export replication!, effMutation!, effSelection!, evoUpgrade!, evolution!, upgra
 function flipping!(istMGty::tIsingSigTransMGty, βJij::Array{<:Real,1}, βhi::Real, n::Array{<:Integer,2})
 	# Monte Carlo step evaluated using Glauber transition rates:
 	# next possibly transitioning spin (coordinates)
-	i, j = rand(collect(1:istMGty.L)), rand(collect(1:istMGty.L))
+	rng = THREADRNG[threadid()]
+	i, j = rand(rng,1:istMGty.L), rand(rng,1:istMGty.L)
 	# transitioning?!
 	if i > istMGty.li || j > istMGty.li
-		if rand() < ( 1. - n[i,j]*tanh(
+		if rand(rng) < ( 1. - n[i,j]*tanh(
 				βJij[istMGty.Jpi[i,j]]*n[istMGty.jp[i],j] + βJij[istMGty.Jmi[i,j]]*n[istMGty.jm[i],j] +
 				βJij[istMGty.Jpj[i,j]]*n[i,istMGty.jp[j]] + βJij[istMGty.Jmj[i,j]]*n[i,istMGty.jm[j]] +
 				istMGty.βhe ))/2
 			n[i,j] = - n[i,j]
 		end
 	# else
-	# 	if rand() < ( 1. - n[i,j]*tanh(
+	# 	if rand(rng) < ( 1. - n[i,j]*tanh(
 	# 			βJij[istMGty.Jpi[i,j]]*n[istMGty.jp[i],j] + βJij[istMGty.Jmi[i,j]]*n[istMGty.jm[i],j] +
 	# 			βJij[istMGty.Jpj[i,j]]*n[i,istMGty.jp[j]] + βJij[istMGty.Jmj[i,j]]*n[i,istMGty.jm[j]] +
 	# 			istMGty.βhe + βhi ))/2
@@ -267,23 +293,28 @@ function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real whe
 	βJij::Array{Float64,1} = Jij*istMGty.β;		βhi::Float64 = hi*istMGty.β
 
 	# the initial state vector
-	n = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
-	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
+	n = Vector{Array{Int8,2}}(undef,nthreads())
+	for t in 1:nthreads()
+		n[t] = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
+		n[t][1:istMGty.li,1:istMGty.li] .= sign(hi)
+	end
 
 	# definition: time-averaged readout magnetization
-	mro::Float64 = 0.0
+	mro = zeros(Float64, nthreads())
 
-	for is in 1:istMGty.prms.Nsmpl
-		for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
-			flipping!(istMGty,βJij,βhi,n)
+	NsmplsThreaded = istMGty.prms.Nsmpl ÷ nthreads()
+	for t in 1:nthreads()
+		for is in 1:NsmplsThreaded
+			for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
+				flipping!(istMGty,βJij,βhi,n[threadid()])
+			end
+			# evaluation: time-averaged readout magnetization
+			mro[threadid()] += sum(n[threadid()][istMGty.halfL+1:istMGty.halfL+istMGty.li,istMGty.halfL+1:istMGty.halfL+istMGty.li])
 		end
-		# evaluation: time-averaged readout magnetization
-		mro += sum(n[istMGty.halfL+1:istMGty.halfL+istMGty.li,istMGty.halfL+1:istMGty.halfL+istMGty.li])
 	end
 	# evaluation: time-averaged readout magnetization
-	mro /= istMGty.prms.Nsmpl*istMGty.li2
 
-	return mro
+	return sum(mro)/(NsmplsThreaded*nthreads()*istMGty.li2)
 end
 
 # ===================
@@ -515,6 +546,12 @@ function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.aveFitness[t],"\t") end, print(f,"\n")
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.growthFactor[t],"\t") end, print(f,"\n")
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.mutationFactor[t],"\t") end, print(f,"\n")
+	end
+
+	for dataBatch in aData
+		for (gen, pop)  in zip(dataBatch.aGen, dataBatch.aLivingPop)
+			write_tLivingPop( pop, fileTag * "_g$gen")
+		end
 	end
 end
 
