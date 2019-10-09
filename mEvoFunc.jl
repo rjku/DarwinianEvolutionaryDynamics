@@ -8,23 +8,24 @@ const THREADRNG = let m = MersenneTwister(1)
             [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
         end;
 
-const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS = .001, .95, 3.0
+const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = .001, .99, 3.0, 12
 
 # initializer constructor for discrete time evolution. Same MetaGenotype for all.
 function initLivingPop( N::Int32,ety::Tety,env::Tenv,aMGty::Vector{Tmgty},aGty::Vector{Tgty} ) where {
 		Tety<:atEvotype,Tenv<:atEnvironment,Tmgty<:atMetaGenotype,Tgty<:atGenotype }
-	for i in 1:N fitness!(env,aGty[i]) end
+	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N > length(aGty)"))
+	@threads for i in 1:N fitness!(env,aGty[i]) end
 	return tLivingPop{Tety,Tenv,Vector{Tmgty},Vector{Tgty}}( Int32[N,N,length(aGty)],ety,env,aMGty,aGty )
 end
 
-# function. changing rep and mut -factors in tEty
-function set_tEtyFactors(ety::tEty,gty::atGenotype)
+# function. changing rep and mut -factors in tDscdtEty
+function set_tDscdtEtyFactors(ety::tDscdtEty,gty::atGenotype)
 	ety.pRepFactor[1] = ety.repRate/(2gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
 	ety.pMutFactor[1] = ety.mutRate/(2gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
 end
 
-# function. changing rep and mut -factors in tEty
-function set_tEtyFactors(ety::tEty,gty::tAlphaGty)
+# function. changing rep and mut -factors in tDscdtEty
+function set_tDscdtEtyFactors(ety::tDscdtEty,gty::tAlphaGty)
 	ety.pRepFactor[1] = ety.repRate/(gty.pdg[1]*gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
 	ety.pMutFactor[1] = ety.mutRate/(gty.pdg[1]*gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
 end
@@ -63,15 +64,16 @@ function replication!(pop::tLivingPop)
 	return log(pop.pN[1]/pop.pN[2])
 end
 
-function blindMutation!(gty::tAddGty,mutProb::Float64)
-	Pmut = 2gty.pdG[1]*mutProb
-	Pmut <= 1 || throw("probability of mutation exceeds 1")
+function blindMutation!(gty::tAddGty,ety::atGtyMutEty)
+	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+	CPmut = 2gty.pdG[1]*Pmut
+	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
-	if r <= Pmut
-		while cumProb < r
+	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
+	if r <= CPmut
+		while CDFmut < r
+			CDFmut += Pmut
 			ig += 1
-			cumProb += mutProb
 		end
 		gty.G[ ig % gty.pdG[1] + 1 ] += ig % 2 == 0 ? gty.Δg : -gty.Δg
 		return Int32(1)
@@ -80,15 +82,16 @@ function blindMutation!(gty::tAddGty,mutProb::Float64)
 	end
 end
 
-function blindMutation!(gty::tMltGty,mutProb::Float64)
-	Pmut = 2gty.pdG[1]*mutProb
-	Pmut <= 1 || throw("probability of mutation exceeds 1")
+function blindMutation!(gty::tMltGty,ety::atGtyMutEty)
+	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+	CPmut = 2gty.pdG[1]*Pmut
+	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
-	if r <= Pmut
-		while cumProb < r
+	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
+	if r <= CPmut
+		while CDFmut < r
+			CDFmut += Pmut
 			ig += 1
-			cumProb += mutProb
 		end
 		gty.G[ ig % gty.pdG[1] + 1 ] *= ig % 2 == 0 ? gty.δg : 1.0/gty.δg
 		return Int32(1)
@@ -97,16 +100,16 @@ function blindMutation!(gty::tMltGty,mutProb::Float64)
 	end
 end
 
-function blindMutation!(gty::tAlphaGty,mutProb::Float64)
-	Pmut = gty.pdG[1]*gty.pdg[1]*mutProb
-	Pmut <= 1 || throw("probability of mutation exceeds 1")
+function blindMutation!(gty::tAlphaGty,ety::atGtyMutEty)
+	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+	CPmut = gty.pdG[1]*gty.pdg[1]*Pmut
+	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
-	# cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
-	if r <= Pmut
-		while cumProb < r
+	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
+	if r <= CPmut
+		while CDFmut < r
+			CDFmut += Pmut
 			ig += 1
-			cumProb += mutProb
 		end
 		gty.G[ ig % gty.pdG[1] + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
 		return Int32(1)
@@ -115,32 +118,35 @@ function blindMutation!(gty::tAlphaGty,mutProb::Float64)
 	end
 end
 
-function blindMutation!(gty::tAlphaGty,mutProb::Float64)
-	Pmut = gty.pdG[1]*gty.pdg[1]*mutProb
-	Pmut <= 1 || throw("probability of mutation exceeds 1")
+function blindMutation!(gty::tCntGty,ety::atPntMutEty)
+	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.pF[1])
+	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^gty.pdG[1])		# probability of no mutation
+	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
-	# cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(R[threadid()])
-	cumProb::Float64 = 0.0; ig::Int32 = -1; r::Float64 = rand(THREADRNG[threadid()])
-	if r <= Pmut
-		while cumProb < r
-			ig += 1
-			cumProb += mutProb
-		end
-		gty.G[ ig % gty.pdG[1] + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
-		return Int32(1)
-	else
-		return Int32(0)
+	while CDFmut < rNmut && Nmut < length(ety.aSize2PDF[gty.pdG[1]])
+		CDFmut += K*ety.aSize2PDF[gty.pdG[1]][Nmut+=1]
 	end
+
+	aMut = Vector{Int32}(undef, Nmut)
+	for nmut in 1:Nmut
+		aMut[nmut] = rand(THREADRNG[threadid()], filter( e -> !(e in aMut), 1:gty.pdG[1] ))
+	end
+
+	for i in aMut
+		gty.G[i] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	end
+
+	return Nmut
 end
 
 # function. effective mutation: blindly mutate the population's genotype according to the effective dynamical mutation rate
 function effMutation!(pop::tLivingPop)
 	Nmutations = zeros(Int32,nthreads())
 	@threads for i in 1:pop.pN[1]
-		Nmutations[threadid()] += blindMutation!(pop.aGty[i], pop.ety.pMutFactor[1]/(1+pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]))
+		Nmutations[threadid()] += blindMutation!(pop.aGty[i],pop.ety)
 		fitness!(pop.env,pop.aGty[i])
 	end
-	return sum(Nmutations)/pop.pN[1] 	# normalized number of mutations
+	return sum(Nmutations)/pop.pN[2] 	# normalized number of mutations
 end
 
 # function. effective selection: pruning of the population
@@ -165,7 +171,7 @@ end
 
 # function. condition for genotypic upgrade
 function upgradeCondition(gty::atSystemGty{<:atIsingMetaGty})
-	return gty.pF[1] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD
+	return gty.pF[1] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < MAXSIZE
 end
 
 # function. new genotypic variables choice. additive genotype case
@@ -190,6 +196,26 @@ function newg!(gty::tAlphaGty{<:atIsingMetaGty})
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
 		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
 	end
+	# there are a couple of connection missing in this routine
+end
+
+# function. new genotypic variables choice. alphabetic genotype case
+function newg!(gty::tCntGty{<:atIsingMetaGty})
+	# duplication of previous line genotype + some randomness
+	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
+		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+			gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	end
+
+	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
+		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+			gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	end
+
+	gty.G[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+1 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.G[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+3 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.G[ ( gty.pMetaGty[1].L+2 )*( 2gty.pMetaGty[1].L+3 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.G[ ( gty.pMetaGty[1].L+2 )*( 2gty.pMetaGty[1].L+4 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
 	# there are a couple of connection missing in this routine
 end
 
@@ -218,7 +244,7 @@ function upgradeMetaGty!(ety::atEvotype,aMetaGty::Vector{<:tIsingSigTransMGty},g
 	if !foundMetaGty
 		push!( aMetaGty, tIsingSigTransMGty(gty.pMetaGty[1].L+Int32(2),gty.pMetaGty[1].β,gty.pMetaGty[1].he,gty.pMetaGty[1].prms) )
 		gty.pMetaGty[1] = aMetaGty[end]
-		set_tEtyFactors(ety,gty)
+		# set_tDscdtEtyFactors(ety,gty)
 	end
 end
 
@@ -303,6 +329,7 @@ function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real whe
 	mro = zeros(Float64, nthreads())
 
 	NsmplsThreaded = istMGty.prms.Nsmpl ÷ nthreads()
+	# istMGty.prms.Nsmpl % nthreads() == 0 || throw("mismatch between nthreads and Nsmpl. Choose: Nsmpl = multiple of $nthreads()")
 	for t in 1:nthreads()
 		for is in 1:NsmplsThreaded
 			for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
@@ -313,50 +340,32 @@ function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real whe
 		end
 	end
 	# evaluation: time-averaged readout magnetization
-
 	return sum(mro)/(NsmplsThreaded*nthreads()*istMGty.li2)
-end
-
-# ===================
-# MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation, n evolution
-# 	( tIsingST istMGty, state n, interaction matrix Jij, input field h ) → readout magnetization m
-function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,n::Array{<:Integer,2})
-	βJij::Array{Float64,1} = Jij*istMGty.β;		βhi::Float64 = hi*istMGty.β
-
-	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
-
-	# definition: time-averaged readout magnetization and readout region range
-	mro::Float64 = 0.0
-	roRegionRange = istMGty.halfL+1:istMGty.halfL+istMGty.li
-
-	for is in 1:istMGty.prms.Nsmpl
-		for imcs in 1:istMGty.prms.Nmcsps, ilp in 1:istMGty.L2
-			flipping!(istMGty,βJij,βhi,n)
-		end
-		# evaluation: time-averaged readout magnetization
-		mro += sum(view(n,roRegionRange,roRegionRange))
-	end
-	# evaluation: time-averaged readout magnetization
-	mro /= istMGty.prms.Nsmpl * istMGty.li2
-
-	return mro
 end
 
 # ===================
 # MonteCarlo simulation function for ising signal transduction: time-averaged spin config evaluation
 # 	( tIsingST istMGty, state n, interaction matrix Jij, input field h ) → readout magnetization m
-function metropolis!(istMGty::tIsingSigTransMGty, Jij::Array{<:Real,1}, hi::Real, an::Vector{Array{Int8,2}}, prms::tDTMCprm)
+function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,an::Vector{Array{Int8,2}},prms::tDTMCprm)
 	βJij::Array{Float64,1} = Jij.*istMGty.β;		βhi::Float64 = hi.*istMGty.β
 
-	# initialization: initial state vector
-	n = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
-	n[1:istMGty.li,1:istMGty.li] .= sign(hi)
+	n = Vector{Array{Int8,2}}(undef,nthreads())
+	@threads for t in 1:nthreads()
+		n[t] = Int8(istMGty.he != 0.0 ? sign(istMGty.he) : 1).*ones(Int8, istMGty.L, istMGty.L)
+		n[t][1:istMGty.li,1:istMGty.li] .= sign(hi)
+	end
 
-	@showprogress 1 "Monte Carlo Dynamics Status: " for is in 1:prms.Nsmpl
-		for imcs in 1:prms.Nmcsps, ilp in 1:istMGty.L2
-			flipping!(istMGty,βJij,βhi,n)
+	# @showprogress 1 "Monte Carlo Dynamics Status: "
+	NsmplsThreaded = prms.Nsmpl ÷ nthreads()
+	prms.Nsmpl % nthreads() == 0 || throw("mismatch between nthreads and Nsmpl. Choose: Nsmpl = multiple of $nthreads()")
+	@threads for t in 1:nthreads()
+		for is in 1:NsmplsThreaded
+			for imcs in 1:prms.Nmcsps, ilp in 1:istMGty.L2
+				flipping!(istMGty,βJij,βhi,n[threadid()])
+			end
+			# an[ is + (threadid() - 1)*NsmplsThreaded ] = deepcopy( n[threadid()] )
+			an[ is + (t - 1)*NsmplsThreaded ] = deepcopy( n[threadid()] )	# <- when no threading is used
 		end
-		an[is] = deepcopy(n)
 	end
 end
 
@@ -399,7 +408,7 @@ function getSpinStat!(env::tCompEnv,gty::atSystemGty{<:atIsingMetaGty},aSpinAve:
 	aan = Vector{Vector{Array{Int8,2}}}(undef,length(env.idealInputOutput))
 	aSpinCorFisherz = Vector{Array{Float64,2}}(undef,length(env.idealInputOutput))
 
-	for i in 1:length(env.idealInputOutput)
+	for i in eachindex(env.idealInputOutput)
 		aan[i] = [ Array{Int8}(undef, gty.pMetaGty[1].L, gty.pMetaGty[1].L) for ismpl in 1:prms.Nsmpl ]
 		aSpinCorFisherz[i] = Array{Float64}(undef, gty.pMetaGty[1].L2, gty.pMetaGty[1].L2)
 
@@ -421,14 +430,15 @@ function getSpinStat!(env::tCompEnv,gty::atSystemGty{<:atIsingMetaGty},aSpinAve:
 
 	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
 		# sCor[si,sj] = tanh( mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.idealInputOutput)] ) )
-		sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.idealInputOutput)] )
+		sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in eachindex(env.idealInputOutput)] )
 	end
 end
 
-function showJij!(gty::atSystemGty{<:atIsingMetaGty},JijMat::Array{Float64,2})
+function showG!(gty::tCntGty{<:atIsingMetaGty},GMat::Array{Float64,2})
 	ii::Int32 = 0
 	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
-		JijMat[i,j] = j%2==1 ? ( i%2==0 ? 10^(gty.G[ii+=1]) : -1 ) : ( i%2==1 ? 10^(gty.G[ii+=1]) : 10^6+1 )
+		#	column is odd => ( row is even => G ; otherwise spin place ) ; otherwise ( row is odd => G ; otherwise empty space )
+		GMat[i,j] = j%2==1 ? ( i%2==0 ? gty.G[ii+=1] : gty.gbounds[1] - 10 ) : ( i%2==1 ? gty.G[ii+=1] : gty.gbounds[2] + 10 )
 	end
 end
 
@@ -446,6 +456,13 @@ function getGStat!(pop::tLivingPop,GAve::Vector{Float64},GCov::Array{Float64,2},
 
 	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
 		GCor[x,y] = GCov[x,y]/sqrt(GCov[x,x]*GCov[y,y])
+	end
+end
+
+function showJij!(gty::atSystemGty{<:atIsingMetaGty},JijMat::Array{Float64,2})
+	ii::Int32 = 0
+	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
+		JijMat[i,j] = j%2==1 ? ( i%2==0 ? 10^(gty.G[ii+=1]) : -1 ) : ( i%2==1 ? 10^(gty.G[ii+=1]) : 10^6+1 )
 	end
 end
 
@@ -542,7 +559,7 @@ end
 
 # function: saving the evolutionary data
 function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
-	open( "evoData_" * fileTag * ".dat", "w" ) do f
+	open( "data/" * fileTag * "_evoData" * ".dat", "w" ) do f
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.aveFitness[t],"\t") end, print(f,"\n")
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.growthFactor[t],"\t") end, print(f,"\n")
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.mutationFactor[t],"\t") end, print(f,"\n")
@@ -550,7 +567,7 @@ function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
 
 	for dataBatch in aData
 		for (gen, pop)  in zip(dataBatch.aGen, dataBatch.aLivingPop)
-			write_tLivingPop( pop, fileTag * "_g$gen")
+			write_tLivingPop( pop, "data/" * fileTag * "_g$gen")
 		end
 	end
 end
@@ -561,14 +578,14 @@ export write_DTMCprm, write_MetaGty, write_aGty, write_tLivingPop, write_tEvoDat
 
 # read metagenotype
 function read_MetaGty(L::Integer,prms::atMonteCarloPrm,fileTag::String)::atIsingMetaGty
-	metaGtyMat = readdlm( fileTag * "_MetaGty" * ".dat" )
+	metaGtyMat = readdlm( "data/" * fileTag * "_MetaGty" * ".dat" )
 	return tIsingSigTransMGty(L,metaGtyMat[1],metaGtyMat[2],prms)
 end
 
 # read population and spits metagenotype and genotype
 function read_aIsingSigTransAlphaGty(prms::atMonteCarloPrm,fileTag::String)
-	gtyMat = readdlm( fileTag * "_atAlphaGty" * ".dat" )
-	gMat = readdlm( fileTag * "_atAlphaGty_g" * ".dat" )
+	gtyMat = readdlm( "data/" * fileTag * "_atAlphaGty" * ".dat" )
+	gMat = readdlm( "data/" * fileTag * "_atAlphaGty_g" * ".dat" )
 	Npop = size(gtyMat)[1]
 
 	sysSizes = Int32[]

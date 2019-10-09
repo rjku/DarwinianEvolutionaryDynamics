@@ -30,10 +30,14 @@ abstract type atGenotype end
 
 abstract type atPhenotype end
 
+abstract type atGtyMutEty <: atEvotype end
+abstract type atPntMutEty <: atEvotype end
+
 abstract type atIsingMetaGty <: atMetaGenotype end
+
 abstract type atSystemGty{Tmgty} <: atGenotype end		# genotypes endowed with a pointer to a atMetaGenotype: pMetaGty
 
-export atPopulation, atEvotype, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atSystemGty
+export atPopulation, atEvotype, atGtyMutEty, atPntMutEty, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atSystemGty
 
 
 # *******************
@@ -122,14 +126,28 @@ end
 tCntGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
 	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,gbounds,[0.0])
 
+# type: genotype with continuous bounded genotypic variables and genetic assimilation mechanism
+struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
+	pMetaGty::Tpmgty
+	pdG::Vector{Int32}
+	G::Tag
+	gbounds::Tag
+	aPmut::Vector{Float64}
+	pF::Vector{Float64}
+end
+
+# constructor: undefined fitness
+tCntGenAssGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
+	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,gbounds,aPmut,[0.0])
+
 export tAddGty, tMltGty, tAlphaGty, tCntGty
 
 # ===================
 # population dynamics types
 # ===================
 
-# type: evotype
-struct tEty <: atEvotype
+# type: discretized time evotype
+struct tDscdtEty <: atGtyMutEty
 	repRate::Float64
 	mutRate::Float64
 	ΔtOffset::Float64
@@ -137,13 +155,24 @@ struct tEty <: atEvotype
 	pMutFactor::Vector{Float64}
 end
 
-# costructor. tEty
-tEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::atGenotype) =
-	tEty( repRate,mutRate,ΔtOffset,[repRate/(2gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(2gty.pdG[1]*mutRate+ΔtOffset)] )
+# costructor. tDscdtEty
+tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::atGenotype) =
+	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(2gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(2gty.pdG[1]*mutRate+ΔtOffset)] )
 
-# costructor. tEty
-tEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::tAlphaGty) =
-	tEty( repRate,mutRate,ΔtOffset,[repRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)] )
+# costructor. tDscdtEty
+tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::tAlphaGty) =
+	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)] )
+
+# type: evotype
+struct tPntMutEty <: atPntMutEty
+	pRepFactor::Vector{Float64}				# <- trasnform these into Float64
+	pPntMutFactor::Vector{Float64}
+	aSize2PDF::Dict{Int32,Vector{Float64}}
+end
+
+# costructor. tPointMutationEty
+tPntMutEty(repFactor::Float64,pntMutFactor::Float64,aSize::Vector{<:Integer},NmutMax::Integer) = tPntMutEty([repFactor],[pntMutFactor],
+	Dict( N => [ binomial(BigInt(N),n)*(pntMutFactor^n)*(1-pntMutFactor)^(N-n) for n in 1:NmutMax ] for N in aSize))
 
 # ===================
 # type: population
@@ -174,7 +203,7 @@ end
 tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(Ngen,Array{Float64}(undef,Ngen),
 	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),[aveFt],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
 
-export tCompEnv, tEty, tEvoData, tLivingPop
+export tCompEnv, tDscdtEty, tPntMutEty, tEvoData, tLivingPop
 
 # ===================
 # type: ising signal transduction

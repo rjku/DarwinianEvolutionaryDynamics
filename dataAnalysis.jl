@@ -19,7 +19,7 @@ isingDTMCprm = tDTMCprm( NITERATION,NSAMPLINGS,NTRIALS )
 aIsingMGty, aIsingGty, Npop = mEvoFunc.read_aIsingSigTransGty(isingDTMCprm,"test_#1")
 
 isingEnv = tCompEnv([ [-10.0^10,-1.0], [10.0^10,1.0] ],SELSTRENGTH)
-isingEty = mEvoFunc.tEty{Float64}(REPRATE,MUTRATE,DELTATOFFSET,aIsingMGty[end].dG,DELTAG)
+isingEty = mEvoFunc.tDscdtEty{Float64}(REPRATE,MUTRATE,DELTATOFFSET,aIsingMGty[end].dG,DELTAG)
 
 isingPop = tLivingPop( Int32[Npop,Npop,Npop],isingEty,isingEnv,aIsingMGty,aIsingGty )
 
