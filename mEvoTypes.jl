@@ -2,7 +2,7 @@
 module mEvoTypes
 
 # *******************
-# ABSTRACT TYPES
+#   ABSTRACT TYPES
 # *******************
 
 # ===================
@@ -12,7 +12,7 @@ abstract type atMonteCarloPrm end
 export atMonteCarloPrm
 
 # ===================
-# environment types
+# environmental types
 abstract type atEnvironment end
 
 # computational: input--ideal-output | T relates to the representation ...
@@ -34,17 +34,21 @@ abstract type atGtyMutEty <: atEvotype end
 abstract type atPntMutEty <: atEvotype end
 
 abstract type atIsingMetaGty <: atMetaGenotype end
+abstract type atChannelMetaGty <: atMetaGenotype end
 
 abstract type atSystemGty{Tmgty} <: atGenotype end		# genotypes endowed with a pointer to a atMetaGenotype: pMetaGty
 
-export atPopulation, atEvotype, atGtyMutEty, atPntMutEty, atIsingMetaGty, atMetaGenotype, atGenotype, atPhenotype, atSystemGty
+export atPopulation, atEvotype, atGtyMutEty, atPntMutEty, atMetaGenotype, atIsingMetaGty, atChannelMetaGty, atGenotype, atPhenotype, atSystemGty
 
 
 # *******************
-# CONCRETE TYPES
+#   CONCRETE TYPES
 # *******************
 
-# ===================
+# ==============
+#   SIMULATION
+# ==============
+
 # type: discrete time monte carlo parameters
 struct tDTMCprm <: atMonteCarloPrm
 	Nsmpl::Int32							# number of Samples
@@ -54,29 +58,32 @@ end
 
 export tDTMCprm
 
-# ===================
-# environment types
-# ===================
+# =================
+#   ENVIRONMENTAL
+# =================
+
 # type: computational environment
-struct tCompEnv{T<:AbstractArray} <: atCompEnv
-	idealInputOutput::Array{T,1}
+struct tCompEnv{T<:Vector{<:AbstractVector}} <: atCompEnv
+	IOidl::T
 	selFactor::Float64
 end
 
-# ===================
+# ==============
+#   POPULATION
+# ==============
+
 # type: trivial environment
 struct tTrivialEnv <: atEnvironment end
 
 export tTrivialEnv
 
-# ===================
-# GENOTYPES
-# ===================
+# -------------------
+#   GENOTYPES
+# -------------------
 
 # type: genotype with additive genotypic variations
 struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	pdG::Vector{Int32}
 	G::Tag
 	Δg::Tg
 	pF::Vector{Float64}
@@ -84,12 +91,11 @@ end
 
 # constructor: undefined fitness
 tAddGty(pMGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,[length(G)],G,Δg,[0.0])
+	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,Δg,[0.0])
 
 # type: genotype with multiplicative genotypic variations
 struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	pdG::Vector{Int32}
 	G::Tag
 	δg::Tg
 	pF::Vector{Float64}
@@ -97,12 +103,11 @@ end
 
 # constructor: undefined fitness
 tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,[length(G)],G,δg,[0.0])
+	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0])
 
 # type: genotype with alphabetical (not unbounded) genotypic variables
 struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	pdG::Vector{Int32}
 	G::Tag
 	pdg::Vector{Int32}
 	g::Tag
@@ -111,12 +116,11 @@ end
 
 # constructor: undefined fitness
 tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,[length(g)],g,[0.0])
+	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,[length(g)],g,[0.0])
 
 # type: genotype with continuous bounded genotypic variables
 struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	pdG::Vector{Int32}
 	G::Tag
 	gbounds::Tag
 	pF::Vector{Float64}
@@ -124,12 +128,11 @@ end
 
 # constructor: undefined fitness
 tCntGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,gbounds,[0.0])
+	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,[0.0])
 
 # type: genotype with continuous bounded genotypic variables and genetic assimilation mechanism
 struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	pdG::Vector{Int32}
 	G::Tag
 	gbounds::Tag
 	aPmut::Vector{Float64}
@@ -138,13 +141,13 @@ end
 
 # constructor: undefined fitness
 tCntGenAssGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,[length(G)],G,gbounds,aPmut,[0.0])
+	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,aPmut,[0.0])
 
 export tAddGty, tMltGty, tAlphaGty, tCntGty
 
-# ===================
-# population dynamics types
-# ===================
+# -------------------
+#   EVOTYPES
+# -------------------
 
 # type: discretized time evotype
 struct tDscdtEty <: atGtyMutEty
@@ -157,11 +160,12 @@ end
 
 # costructor. tDscdtEty
 tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::atGenotype) =
-	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(2gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(2gty.pdG[1]*mutRate+ΔtOffset)] )
+	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(2gty.pMetaGty[1].dG*mutRate+ΔtOffset)],[mutRate/(2gty.pMetaGty[1].dG*mutRate+ΔtOffset)] )
 
 # costructor. tDscdtEty
 tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::tAlphaGty) =
-	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)],[mutRate/(gty.pdg[1]*gty.pdG[1]*mutRate+ΔtOffset)] )
+	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(gty.pdg[1]*gty.pMetaGty[1].dG*mutRate+ΔtOffset)],
+	[mutRate/(gty.pdg[1]*gty.pMetaGty[1].dG*mutRate+ΔtOffset)] )
 
 # type: evotype
 struct tPntMutEty <: atPntMutEty
@@ -171,41 +175,15 @@ struct tPntMutEty <: atPntMutEty
 end
 
 # costructor. tPointMutationEty
-tPntMutEty(repFactor::Float64,pntMutFactor::Float64,aSize::Vector{<:Integer},NmutMax::Integer) = tPntMutEty([repFactor],[pntMutFactor],
-	Dict( N => [ binomial(BigInt(N),n)*(pntMutFactor^n)*(1-pntMutFactor)^(N-n) for n in 1:NmutMax ] for N in aSize))
+tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutMax::Integer) = tPntMutEty([repFactor],[pntMutFactor],
+	Dict( dG => [ binomial(BigInt(dG),n)*(pntMutFactor^n)*(1-pntMutFactor)^(dG-n) for n in 1:NmutMax ] for dG in adG))
 
-# ===================
-# type: population
-struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,Tamgty<:Vector{<:atMetaGenotype},Tagty<:Vector{<:atGenotype}} <: atPopulation
-	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
-	ety::Tety
-	env::Tenv
-	aMetaGty::Tamgty
-	aGty::Tagty
-end
+export tCompEnv, tDscdtEty, tPntMutEty
 
-# ===================
-# type: evolutionary dynamics data
-struct tEvoData
-	Ngen::Int32
-	growthFactor::Array{Float64,1}
-	aveFitness::Array{Float64,1}
-	mutationFactor::Array{Float64,1}
+# -------------------
+#   METAGENOTYPES
+# -------------------
 
-	pAveFt::Vector{Float64}
-	aveFtinc::Float64
-
-	aGen::Vector{Int32}
-	aLivingPop::Vector{tLivingPop}
-end
-
-# initializer constructor
-tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(Ngen,Array{Float64}(undef,Ngen),
-	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),[aveFt],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
-
-export tCompEnv, tDscdtEty, tPntMutEty, tEvoData, tLivingPop
-
-# ===================
 # type: ising signal transduction
 struct tIsingSigTransMGty{Tprm<:atMonteCarloPrm} <: atIsingMetaGty
 	L::Int32				# system size
@@ -238,7 +216,60 @@ tIsingSigTransMGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMont
 	prms
 )
 
-export tIsingSigTransMGty
+# type: disordered channel metagenotype <: atChannelMetaGty
+struct tDisChnMGty <: atChannelMetaGty
+	L::Int32					# system size
+	L2::Int32;	L2mL::Int32
+	dG::Int32;	Nvbl::Int32		# genotype length and viable transitions
+	p::Float64 					# viability probability
+	V::Vector{Vector{Int32}}	# [ t(e), o(e) ] vector
+	kout::Float64				# output rate constant
+end
+
+struct tCrntPattern
+	V::Vector{Vector{Int32}}	# [ t(e), o(e) ] vector
+	aJ::Vector{Vector{Float64}}
+end
+
+export tIsingSigTransMGty, tDisChnMGty, tCrntPattern
+
+# -------------------
+#   POPULATION and DATA
+# -------------------
+
+# type: population
+struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,Tamgty<:Vector{<:atMetaGenotype},Tagty<:Vector{<:atGenotype}} <: atPopulation
+	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
+	ety::Tety
+	env::Tenv
+	aMetaGty::Tamgty
+	aGty::Tagty
+end
+
+# type: evolutionary dynamics data
+struct tEvoData
+	Ngen::Int32
+	growthFactor::Array{Float64,1}
+	aveFitness::Array{Float64,1}
+	mutationFactor::Array{Float64,1}
+
+	pAveFt::Vector{Float64}
+	aveFtinc::Float64
+
+	aGen::Vector{Int32}
+	aLivingPop::Vector{tLivingPop}
+end
+
+# initializer constructor
+tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(Ngen,
+	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),
+	[aveFt],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
+
+tEvoData(Ngen::Int32,aveFtinc::Float64) = tEvoData(Ngen,
+	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),
+	[0.0],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
+
+export tEvoData, tLivingPop
 
 # *******************
 # TRIVIAL STUFF

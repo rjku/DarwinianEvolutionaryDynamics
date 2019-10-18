@@ -1,6 +1,6 @@
 
 module mEvoFunc
-using mEvoTypes, Random, Statistics, Base.Threads, DelimitedFiles, Dates, Distances, ProgressMeter
+using mEvoTypes, Base.Threads, Random, Statistics, SparseArrays, Distributions, ForwardDiff, DelimitedFiles, Dates, Distances, ProgressMeter
 import Future
 
 # threads random generators initialization
@@ -20,14 +20,14 @@ end
 
 # function. changing rep and mut -factors in tDscdtEty
 function set_tDscdtEtyFactors(ety::tDscdtEty,gty::atGenotype)
-	ety.pRepFactor[1] = ety.repRate/(2gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
-	ety.pMutFactor[1] = ety.mutRate/(2gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
+	ety.pRepFactor[1] = ety.repRate/(2gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
+	ety.pMutFactor[1] = ety.mutRate/(2gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
 end
 
 # function. changing rep and mut -factors in tDscdtEty
 function set_tDscdtEtyFactors(ety::tDscdtEty,gty::tAlphaGty)
-	ety.pRepFactor[1] = ety.repRate/(gty.pdg[1]*gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
-	ety.pMutFactor[1] = ety.mutRate/(gty.pdg[1]*gty.pdG[1]*ety.mutRate+ety.ΔtOffset)
+	ety.pRepFactor[1] = ety.repRate/(gty.pdg[1]*gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
+	ety.pMutFactor[1] = ety.mutRate/(gty.pdg[1]*gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
 end
 
 export initLivingPop
@@ -66,7 +66,7 @@ end
 
 function blindMutation!(gty::tAddGty,ety::atGtyMutEty)
 	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
-	CPmut = 2gty.pdG[1]*Pmut
+	CPmut = 2gty.pMetaGty[1].dG*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
 	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
@@ -75,7 +75,7 @@ function blindMutation!(gty::tAddGty,ety::atGtyMutEty)
 			CDFmut += Pmut
 			ig += 1
 		end
-		gty.G[ ig % gty.pdG[1] + 1 ] += ig % 2 == 0 ? gty.Δg : -gty.Δg
+		gty.G[ ig % gty.pMetaGty[1].dG + 1 ] += ig % 2 == 0 ? gty.Δg : -gty.Δg
 		return Int32(1)
 	else
 		return Int32(0)
@@ -84,7 +84,7 @@ end
 
 function blindMutation!(gty::tMltGty,ety::atGtyMutEty)
 	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
-	CPmut = 2gty.pdG[1]*Pmut
+	CPmut = 2gty.pMetaGty[1].dG*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
 	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
@@ -93,7 +93,7 @@ function blindMutation!(gty::tMltGty,ety::atGtyMutEty)
 			CDFmut += Pmut
 			ig += 1
 		end
-		gty.G[ ig % gty.pdG[1] + 1 ] *= ig % 2 == 0 ? gty.δg : 1.0/gty.δg
+		gty.G[ ig % gty.pMetaGty[1].dG + 1 ] *= ig % 2 == 0 ? gty.δg : 1.0/gty.δg
 		return Int32(1)
 	else
 		return Int32(0)
@@ -102,7 +102,7 @@ end
 
 function blindMutation!(gty::tAlphaGty,ety::atGtyMutEty)
 	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
-	CPmut = gty.pdG[1]*gty.pdg[1]*Pmut
+	CPmut = gty.pMetaGty[1].dG*gty.pdg[1]*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
 	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
@@ -111,7 +111,7 @@ function blindMutation!(gty::tAlphaGty,ety::atGtyMutEty)
 			CDFmut += Pmut
 			ig += 1
 		end
-		gty.G[ ig % gty.pdG[1] + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
+		gty.G[ ig % gty.pMetaGty[1].dG + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
 		return Int32(1)
 	else
 		return Int32(0)
@@ -120,16 +120,16 @@ end
 
 function blindMutation!(gty::tCntGty,ety::atPntMutEty)
 	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.pF[1])
-	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^gty.pdG[1])		# probability of no mutation
+	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^gty.pMetaGty[1].dG)		# probability of no mutation
 	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
-	while CDFmut < rNmut && Nmut < length(ety.aSize2PDF[gty.pdG[1]])
-		CDFmut += K*ety.aSize2PDF[gty.pdG[1]][Nmut+=1]
+	while CDFmut < rNmut && Nmut < length(ety.aSize2PDF[gty.pMetaGty[1].dG])
+		CDFmut += K*ety.aSize2PDF[gty.pMetaGty[1].dG][Nmut+=1]
 	end
 
 	aMut = Vector{Int32}(undef, Nmut)
 	for nmut in 1:Nmut
-		aMut[nmut] = rand(THREADRNG[threadid()], filter( e -> !(e in aMut), 1:gty.pdG[1] ))
+		aMut[nmut] = rand(THREADRNG[threadid()], filter( e -> !(e in aMut), 1:gty.pMetaGty[1].dG ))
 	end
 
 	for i in aMut
@@ -175,7 +175,7 @@ function upgradeCondition(gty::atSystemGty{<:atIsingMetaGty})
 end
 
 # function. new genotypic variables choice. additive genotype case
-function newg!(gty::tAddGty{<:atIsingMetaGty})
+function newg!(gty::tAddGty{<:atIsingMetaGty},Gref::Vector)
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
 		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
@@ -188,7 +188,7 @@ function newg!(gty::tAddGty{<:atIsingMetaGty})
 end
 
 # function. new genotypic variables choice. alphabetic genotype case
-function newg!(gty::tAlphaGty{<:atIsingMetaGty})
+function newg!(gty::tAlphaGty{<:atIsingMetaGty},Gref::Vector)
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
 		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
@@ -200,16 +200,16 @@ function newg!(gty::tAlphaGty{<:atIsingMetaGty})
 end
 
 # function. new genotypic variables choice. alphabetic genotype case
-function newg!(gty::tCntGty{<:atIsingMetaGty})
+function newg!(gty::tCntGty{<:atIsingMetaGty},Gref::Vector)
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
 		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
-			gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+			Gref[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L]
 	end
 
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
 		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
-			gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+			Gref[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L]
 	end
 
 	gty.G[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+1 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
@@ -223,13 +223,12 @@ end
 function upgradeGtyG!(gty::atSystemGty{<:atIsingMetaGty})
 	Gref = copy(gty.G)
 	append!( gty.G, ones(Float64, 8gty.pMetaGty[1].L+8) )
-	gty.pdG[1] += 8gty.pMetaGty[1].L+8
 
 	for u in 0:1, j in 1:gty.pMetaGty[1].L, k in 0:1, i in 1:gty.pMetaGty[1].halfL
 		gty.G[ i + k*(gty.pMetaGty[1].halfL + 1) + (j + u*(gty.pMetaGty[1].L + 2) - 1)*(gty.pMetaGty[1].L+2) ] =
 			Gref[ i + k*gty.pMetaGty[1].halfL + (j + u*gty.pMetaGty[1].L - 1)*gty.pMetaGty[1].L ]
 	end
-	newg!(gty)
+	newg!(gty,Gref)
 end
 
 # function. upgrade metagenotype
@@ -259,8 +258,33 @@ function evoUpgrade!(pop::tLivingPop)
 	end
 end
 
-# function: genetic evolution
-function evolution!(pop::tLivingPop,evo::tEvoData; ubermode::Bool=false)
+# function: set next evolutionary achievement
+function setNextAch!(evo::tEvoData,gen::Integer)
+	while evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
+		evo.pAveFt[1] += evo.aveFtinc
+	end
+end
+
+# function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
+function evolutionGKP!(pop::tLivingPop,evo::tEvoData;ubermode::Bool=false)
+
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
+			push!(evo.aLivingPop,deepcopy(pop))
+			push!(evo.aGen,gen)
+			setNextAch!(evo,gen)
+			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.aveFitness[gen] )
+		end
+
+		evo.growthFactor[gen] = replication!(pop)
+		evo.mutationFactor[gen] = effMutation!(pop)
+		effSelection!(pop,ubermode)
+	end
+end
+
+# function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
+function evolutionGKPup!(pop::tLivingPop,evo::tEvoData;ubermode::Bool=false)
 
 	push!(evo.aLivingPop,deepcopy(pop))
 	push!(evo.aGen,1)
@@ -281,11 +305,20 @@ function evolution!(pop::tLivingPop,evo::tEvoData; ubermode::Bool=false)
 	end
 end
 
-export replication!, effMutation!, effSelection!, evoUpgrade!, evolution!, upgradeGtyG!
+export replication!, effMutation!, effSelection!, evoUpgrade!, upgradeGtyG!, setNextAch!, evolutionGKP!, evolutionGKPup!
 
+# =============
+# |  SYSTEMS  \
+# =============
+
+function fitness!(env::atEnvironment,gty::atGenotype)
+	gty.pF[1] = fitness(env,gty)
+end
+
+export fitness, fitness!
 
 # ***********
-# *  ISING  *
+# |  ISING  \
 # ***********
 
 # function: flipping --- for metropolis
@@ -312,7 +345,6 @@ function flipping!(istMGty::tIsingSigTransMGty, βJij::Array{<:Real,1}, βhi::Re
 	end
 end
 
-# ===================
 # MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation
 # 	( tIsingST istMGty, interaction matrix Jij, input field h ) → readout magnetization m
 function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real where {T<:Real}
@@ -343,7 +375,6 @@ function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real whe
 	return sum(mro)/(NsmplsThreaded*nthreads()*istMGty.li2)
 end
 
-# ===================
 # MonteCarlo simulation function for ising signal transduction: time-averaged spin config evaluation
 # 	( tIsingST istMGty, state n, interaction matrix Jij, input field h ) → readout magnetization m
 function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,an::Vector{Array{Int8,2}},prms::tDTMCprm)
@@ -369,28 +400,139 @@ function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,a
 	end
 end
 
-# fitness function for ising signal transduction
-# 	( evotype istMGty, genotype gty, environment istEnv )
-function fitness(istEnv::tCompEnv{<:Array{Float64}},gty::atSystemGty{<:atIsingMetaGty})::Float64
+# function: fitness for ising signal transduction
+function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:atIsingMetaGty})::Float64
 	fValues = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		d2::Float64 = 0.0
-		for iio in istEnv.idealInputOutput
-			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10^(x),gty.G),iio[1]) - iio[2] )^2
+		for io in env.IOidl
+			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10^(x),gty.G),io[1]) - io[2] )^2
 		end
-		fValues[t] = exp(-sqrt(d2)/istEnv.selFactor)
+		fValues[t] = exp(-sqrt(d2)/env.selFactor)
 	end
 	return minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
 end
 
-function fitness!(istEnv::tCompEnv{<:Array{Float64}},gty::atSystemGty{<:atIsingMetaGty})
-	gty.pF[1] = fitness(istEnv,gty)
+export metropolis, metropolis!
+
+# **************
+# |  CHANNELS  \
+# **************
+
+# constructor: disordered channel
+function tDisChnMGty(L::Int32, p::Float64, kout::Float64)
+	L2mL = L*(L-1)
+
+	viability = rand(THREADRNG[threadid()],Bernoulli(p),2L2mL);	Nvbl = sum(viability)
+	V = [ Vector{Int32}(undef, 2Nvbl), Vector{Int32}(undef, 2Nvbl) ]
+
+	g = 0
+	for (i,v) in enumerate(viability)
+		if i <= L2mL && Bool(v)
+			g+=1
+			V[1][g] = i + (i-1)÷(L-1) + 1;	V[2][g] = i + (i-1)÷(L-1);
+			V[1][g+Nvbl] = V[2][g];			V[2][g+Nvbl] = V[1][g];
+		elseif i > L2mL && Bool(v)
+			g+=1
+			V[1][g] = i - L2mL + L;		V[2][g] = i - L2mL;
+			V[1][g+Nvbl] = V[2][g];		V[2][g+Nvbl] = V[1][g];
+		end
+	end
+
+	mEvoTypes.tDisChnMGty(L, L^2, L2mL, 2Nvbl, Nvbl, p, V, kout)
 end
 
+function getW(gty::atSystemGty{<:atChannelMetaGty})
+	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+	W[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= gty.pMetaGty[1].kout
+	for i in 1:gty.pMetaGty[1].L2
+		W[i,i] = -sum(W[:,i])
+	end
+	return W
+end
 
-# **************************************
-# * STATISTICS FUNCTIONS
-# **************************************
+# function: response of channel using forward differentiation
+function responseFD(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real} )
+	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
+	W[1:gty.pMetaGty[1].L,end] = Input
+	W[end,end] = -sum(W[1:end-1,end])
+
+	Λ(q::Vector) = det( Array(W .* (1. .+ sparse(fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2,
+		map(e -> - 1. + exp(e), q[1:end-1]),gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L2+1)) ) - q[end] .* I )
+	dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
+
+	q0 = zeros(Float64,gty.pMetaGty[1].L+1)
+	y = dΛ(q0)
+
+	return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
+end
+
+# function: constructor of normalized stochastic matrix for disordered channel metagenotype
+# The last column is kept null as it is reserved for input transitions. The last row encodes the normalization.
+function getWnrmd(gty::atSystemGty{<:atChannelMetaGty})
+	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+	W[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= gty.pMetaGty[1].kout
+	for i in 1:gty.pMetaGty[1].L2
+		W[i,i] = -sum(W[:,i])
+	end
+	W[end,:] = ones(Float64,gty.pMetaGty[1].L2+1)
+	return W
+end
+
+# function: response of channel using linear solver
+function response(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real})
+	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
+	W[1:gty.pMetaGty[1].L,end] = Input
+	b = zeros(Float64,gty.pMetaGty[1].L2+1);	b[end] = 1.0
+
+	return gty.pMetaGty[1].kout .* ( ( W \ b )[gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] )
+end
+
+# function: response of channel using linear solver -- compact version
+function response(gty::atSystemGty{<:atChannelMetaGty},Input::Vector{<:Real})
+	W = getWnrmd(gty)
+	response(gty, W, Input)
+end
+
+function fitness(istEnv::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSystemGty{<:atChannelMetaGty})::Float64
+	W = getWnrmd(gty)
+
+	d2::Float64 = 0.0
+	for io in istEnv.IOidl
+		d2 += sum( (response(gty, W, io[1]) - io[2]).^2 )
+	end
+	return exp(-d2/istEnv.selFactor)
+end
+
+export tDisChnMGty, response
+
+
+# *************************
+# | STATISTICS FUNCTIONS  \
+# *************************
+
+function getGStat!(pop::tLivingPop,GAve::Vector{Float64},GCov::Array{Float64,2},GCor::Array{Float64,2})
+	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dG, &, [ pop.aGty[i].pMetaGty[1].dG for i in 2:pop.pN[2] ] ) ||
+		throw(DimensionMismatch("inconsistent dimensions"))
+
+	for x in 1:pop.aGty[1].pMetaGty[1].dG
+		GAve[x] = mean( [pop.aGty[i].G[x] for i in 1:pop.pN[2]] )
+	end
+
+	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
+		GCov[x,y] = myCov( [ pop.aGty[i].G[x] for i in 1:pop.pN[2] ], GAve[x], [ pop.aGty[i].G[y] for i in 1:pop.pN[2] ], GAve[y] )
+	end
+
+	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
+		GCor[x,y] = GCov[x,y]/sqrt(GCov[x,x]*GCov[y,y])
+	end
+end
+
+export getGStat!
+
+# **********************************
+# | STATISTICS FUNCTIONS --- ISING \
+# **********************************
 
 function myCov(X::AbstractArray,XAve::Number,Y::AbstractArray,YAve::Number,)
 	N = length(X)
@@ -405,14 +547,14 @@ end
 # function: showing the spin config of the ising signal transduction system
 function getSpinStat!(env::tCompEnv,gty::atSystemGty{<:atIsingMetaGty},aSpinAve::Vector{Array{Float64,2}},
 		aSpinCov::Vector{Array{Float64,2}},sCor::Array{Float64,2},prms::tDTMCprm)
-	aan = Vector{Vector{Array{Int8,2}}}(undef,length(env.idealInputOutput))
-	aSpinCorFisherz = Vector{Array{Float64,2}}(undef,length(env.idealInputOutput))
+	aan = Vector{Vector{Array{Int8,2}}}(undef,length(env.IOidl))
+	aSpinCorFisherz = Vector{Array{Float64,2}}(undef,length(env.IOidl))
 
-	for i in eachindex(env.idealInputOutput)
+	for i in eachindex(env.IOidl)
 		aan[i] = [ Array{Int8}(undef, gty.pMetaGty[1].L, gty.pMetaGty[1].L) for ismpl in 1:prms.Nsmpl ]
 		aSpinCorFisherz[i] = Array{Float64}(undef, gty.pMetaGty[1].L2, gty.pMetaGty[1].L2)
 
-		metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.G), env.idealInputOutput[i][1], aan[i], prms )
+		metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.G), env.IOidl[i][1], aan[i], prms )
 
 		for s in 1:gty.pMetaGty[1].L2
 			aSpinAve[i][s] = mean([aan[i][t][s] for t in 1:prms.Nsmpl])
@@ -429,8 +571,8 @@ function getSpinStat!(env::tCompEnv,gty::atSystemGty{<:atIsingMetaGty},aSpinAve:
 	end
 
 	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
-		# sCor[si,sj] = tanh( mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.idealInputOutput)] ) )
-		sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in eachindex(env.idealInputOutput)] )
+		# sCor[si,sj] = tanh( mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.IOidl)] ) )
+		sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in eachindex(env.IOidl)] )
 	end
 end
 
@@ -439,23 +581,6 @@ function showG!(gty::tCntGty{<:atIsingMetaGty},GMat::Array{Float64,2})
 	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
 		#	column is odd => ( row is even => G ; otherwise spin place ) ; otherwise ( row is odd => G ; otherwise empty space )
 		GMat[i,j] = j%2==1 ? ( i%2==0 ? gty.G[ii+=1] : gty.gbounds[1] - 10 ) : ( i%2==1 ? gty.G[ii+=1] : gty.gbounds[2] + 10 )
-	end
-end
-
-function getGStat!(pop::tLivingPop,GAve::Vector{Float64},GCov::Array{Float64,2},GCor::Array{Float64,2})
-	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dG, &, [ pop.aGty[i].pMetaGty[1].dG for i in 2:pop.pN[2] ] ) ||
-		throw(DimensionMismatch("inconsistent dimensions"))
-
-	for x in 1:pop.aGty[1].pMetaGty[1].dG
-		GAve[x] = mean( [pop.aGty[i].G[x] for i in 1:pop.pN[2]] )
-	end
-
-	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
-		GCov[x,y] = myCov( [ pop.aGty[i].G[x] for i in 1:pop.pN[2] ], GAve[x], [ pop.aGty[i].G[y] for i in 1:pop.pN[2] ], GAve[y] )
-	end
-
-	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
-		GCor[x,y] = GCov[x,y]/sqrt(GCov[x,x]*GCov[y,y])
 	end
 end
 
@@ -493,8 +618,100 @@ function getJij!(gty::atSystemGty{<:atIsingMetaGty},JijMat::Array{Float64,2})
 	end
 end
 
-export metropolis, metropolis!, fitness, fitness!, getSpinStat!, showJij!, getGStat!, getJijStat!
+export getSpinStat!, showJij!, getJijStat!
 
+# ************************************
+# | STATISTICS FUNCTIONS --- CHANNEL \
+# ************************************
+
+# function getW(gty::atSystemGty{<:atChannelMetaGty})
+# 	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+# 	W[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= gty.pMetaGty[1].kout
+# 	for i in 1:gty.pMetaGty[1].L2
+# 		W[i,i] = -sum(W[:,i])
+# 	end
+# 	return W
+# end
+#
+# # function: response of channel using forward differentiation
+# function responseFD(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real} )
+# 	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
+# 	W[1:gty.pMetaGty[1].L,end] = Input
+# 	W[end,end] = -sum(W[1:end-1,end])
+#
+# 	Λ(q::Vector) = det( Array(W .* (1. .+ sparse( fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2,
+# 		map(e -> exp(e) - 1.0, q[1:end-1]),gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L2+1)) ) - q[end] .* I )
+# 	dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
+#
+# 	q0 = zeros(Float64,gty.pMetaGty[1].L+1)
+# 	y = dΛ(q0)
+#
+# 	return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
+# end
+#
+# # function: showing the spin config of the ising signal transduction system
+# function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},crntAve::tCrntPattern,
+# 		aCrntCov::Vector{Vector{Float64}},crntCor::Vector{Float64})
+#
+# 	# aCrntAve = Vector{Vector{Array{Int8,2}}}(undef,length(env.IOidl))
+# 	# aCrntCorFisherz = Vector{Array{Float64,2}}(undef,length(env.IOidl))
+#
+# 	W = getW(gty)
+#
+# 	Vout = [ fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2) ]
+# 	Vin = [ collect(1:gty.pMetaGty[1].L), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L) ]
+#
+# 	crntAve.V[1] = copy( vcat( gty.pMetaGty[1].V[1][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG],
+# 		fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(1:gty.pMetaGty[1].L) ) )
+# 	crntAve.V[2] = copy( vcat( gty.pMetaGty[1].V[2][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG],
+# 		collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L) ) )
+#
+# 	q0 = zeros(Float64, gty.pMetaGty[1].Nvbl + 2gty.pMetaGty[1].L + 1 )
+# 	for (i, io) in enumerate(env.IOidl)
+# 		W[1:gty.pMetaGty[1].L,end] = io[1]
+# 		W[end,end] = -sum(W[1:end-1,end])
+#
+# 		Λ(q::Vector) = det( Array(W .*
+# 			( 1.0 .+ sparse( crntAve.V[1][1:gty.pMetaGty[1].Nvbl], crntAve.V[2][1:gty.pMetaGty[1].Nvbl],
+# 				map(e -> exp(e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1 ) ) .*
+# 			( 1.0 .+ sparse( crntAve.V[1][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG], crntAve.V[2][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG],
+# 				map(e -> exp(-e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) ) .*
+# 			( 1.0 .+ sparse( Vout..., map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+1:aDisChnGty[1].pMetaGty[1].Nvbl+gty.pMetaGty[1].L]),
+# 					gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) ) .*
+# 			( 1.0 .+ sparse( Vin..., map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+gty.pMetaGty[1].L+1:aDisChnGty[1].pMetaGty[1].Nvbl+2gty.pMetaGty[1].L]),
+# 					gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) )
+# 			) - q[end] .* I )
+# 		dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
+#
+# 		y = dΛ(q0)
+# 		[ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
+# 	end
+#
+# 	# for i in eachindex(env.IOidl)
+# 	# 	aan[i] = [ Array{Int8}(undef, gty.pMetaGty[1].L, gty.pMetaGty[1].L) for ismpl in 1:prms.Nsmpl ]
+# 	# 	aSpinCorFisherz[i] = Array{Float64}(undef, gty.pMetaGty[1].L2, gty.pMetaGty[1].L2)
+# 	#
+# 	# 	metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.G), env.IOidl[i][1], aan[i], prms )
+# 	#
+# 	# 	for s in 1:gty.pMetaGty[1].L2
+# 	# 		aSpinAve[i][s] = mean([aan[i][t][s] for t in 1:prms.Nsmpl])
+# 	# 	end
+# 	#
+# 	# 	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
+# 	# 		aSpinCov[i][si,sj] = myCov( [aan[i][t][si] for t in 1:prms.Nsmpl],aSpinAve[i][si],[aan[i][t][sj] for t in 1:prms.Nsmpl],aSpinAve[i][sj] )
+# 	# 	end
+# 	#
+# 	# 	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
+# 	# 		# aSpinCorFisherz[i][si,sj] = map( r -> log( (1 + r)/(1 - r) )/2, aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si]) )
+# 	# 		aSpinCorFisherz[i][si,sj] = aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si])
+# 	# 	end
+# 	# end
+# 	#
+# 	# for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
+# 	# 	# sCor[si,sj] = tanh( mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.IOidl)] ) )
+# 	# 	sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in eachindex(env.IOidl)] )
+# 	# end
+# end
 
 # *******************
 # I/O FUNCTIONS
@@ -522,7 +739,7 @@ function write_aGty(aGty::Vector{<:atGenotype},Npop::Int32,fileTag::String)
 	length(aGty) >= Npop || throw(DimensionMismatch("population size exceeds Npop variable"))
 	open( fileTag * "_a" * split(string(typeof(aGty[1])),"{")[1] * ".dat", "w" ) do f
 		for i in 1:Npop
-			print(f, aGty[i].pdG[1], "\t")
+			print(f, aGty[i].pMetaGty[1].dG, "\t")
 			for x in aGty[i].G
 				print(f, x, "\t")
 			end
@@ -535,7 +752,7 @@ function write_aGty(aGty::Vector{tAlphaGty},Npop::Int32,fileTag::String)
 	length(aGty) >= Npop || throw(DimensionMismatch("population size exceeds Npop variable"))
 	open( fileTag * "_a" * split(string(typeof(aGty[1])),"{")[1] * ".dat", "w" ) do f
 		for i in 1:Npop
-			print(f, aGty[i].pdG[1], "\t")
+			print(f, aGty[i].pMetaGty[1].dG, "\t")
 			for x in aGty[i].G
 				print(f, x, "\t")
 			end

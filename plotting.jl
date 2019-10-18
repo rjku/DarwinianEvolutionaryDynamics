@@ -37,9 +37,9 @@ const NSMPLSTAT, NMCSPSSTAT, NTRLSTAT = Int32(10^2), Int32(10^5), Int32(2)
 isingDTMCprmStat = tDTMCprm( NSMPLSTAT, NMCSPSSTAT, NTRLSTAT )
 
 aSpinAve = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L
-	) for i in isingEnv.idealInputOutput ]
+	) for i in isingEnv.IOidl ]
 aSpinCov = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2
-	) for i in isingEnv.idealInputOutput ]
+	) for i in isingEnv.IOidl ]
 sCor = Array{Float64}(undef, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2)
 
 @time mEvoFunc.getSpinStat!(isingEnv, aIsingData[iBatch].aLivingPop[iPop].aGty[1], aSpinAve, aSpinCov, sCor, isingDTMCprmStat)
