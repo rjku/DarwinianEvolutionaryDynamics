@@ -1,0 +1,388 @@
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["checks", "Title",ExpressionUUID->"ce4c4610-b149-4d3d-b676-71b9e34a0705"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+  "SetDirectory", "[", "\"\</home/riccardorao/projects/fisheria/analysis\>\"",
+    "]"}], ";"}]], "Input",
+ CellLabel->"In[54]:=",ExpressionUUID->"eccd3881-b2bc-4305-ae8c-dbab014810be"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"W", " ", "=", " ", 
+   RowBox[{"Import", "[", "\"\<Wmat.dat\>\"", "]"}]}], ";"}]], "Input",
+ CellLabel->"In[60]:=",ExpressionUUID->"a1086cc4-6656-453d-a54c-9343fd4c8612"],
+
+Cell[BoxData[
+ RowBox[{"W", "//", "MatrixForm"}]], "Input",
+ CellLabel->"In[61]:=",ExpressionUUID->"b3582c40-801e-49aa-bedf-c34d4ad2459e"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Q", "=", 
+   RowBox[{"{", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"1", ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "5"], "]"}], ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "7"], "]"}], ",", "1", ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "11"], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "1"], "]"}], ",", "1", ",", "1", ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "8"], "]"}], ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "12"], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "3"], "]"}], ",", "1", ",", "1", ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "6"], "]"}], ",", "1"}], "}"}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"1", ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "4"], "]"}], ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "2"], "]"}], ",", "1", ",", "1"}], "}"}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"1", ",", "1", ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "9"], "]"}], ",", 
+       RowBox[{"Exp", "[", 
+        SubscriptBox["q", "10"], "]"}], ",", "1"}], "}"}]}], 
+    "\[IndentingNewLine]", "}"}]}], ";"}]], "Input",
+ CellLabel->"In[84]:=",ExpressionUUID->"52d7c589-1a09-430c-9a09-526a6a87f483"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"W", "*", "Q"}], "//", "MatrixForm"}]], "Input",
+ CellLabel->"In[69]:=",ExpressionUUID->"e26d033d-a26f-43bd-a6f0-ad066dd5610f"],
+
+Cell[BoxData[
+ RowBox[{"\[CapitalLambda]", "=", 
+  RowBox[{"Det", "[", " ", 
+   RowBox[{
+    RowBox[{"W", "*", "Q"}], "-", 
+    RowBox[{
+     SubscriptBox["q", "13"], " ", 
+     RowBox[{"IdentityMatrix", "[", "5", "]"}]}]}], "]"}]}]], "Input",
+ CellLabel->"In[85]:=",ExpressionUUID->"49e6190b-d23a-4b8d-ad82-f70bfb7101df"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"q0", "=", 
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{
+      SubscriptBox["q", "i"], "\[Rule]", "0"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "13"}], "}"}]}], "]"}]}], ";"}]], "Input",
+ CellLabel->"In[81]:=",ExpressionUUID->"78408328-16d8-403a-899d-a345276fb179"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       SubscriptBox["q", "i"]], 
+      RowBox[{
+       SubscriptBox["\[PartialD]", 
+        SubscriptBox["q", "j"]], "\[CapitalLambda]"}]}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "1", ",", "13"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"j", ",", "1", ",", "13"}], "}"}]}], "]"}], "/.", "q0"}], "//", 
+  "MatrixForm"}]], "Input",
+ CellLabel->"In[86]:=",ExpressionUUID->"8917b2c6-353c-4e91-8c2a-cdb03f6c5491"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"jcov", "=", 
+   RowBox[{"Import", "[", "\"\<testJcov\>\"", "]"}]}], ";"}]], "Input",
+ CellLabel->"In[92]:=",ExpressionUUID->"8c81e1da-27c7-4a96-b474-65c75e70dbf4"],
+
+Cell[BoxData[
+ RowBox[{"Chop", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"jcov", "-", 
+     RowBox[{"Table", "[", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", 
+         SubscriptBox["q", "i"]], 
+        RowBox[{
+         SubscriptBox["\[PartialD]", 
+          SubscriptBox["q", "j"]], "\[CapitalLambda]"}]}], ",", 
+       RowBox[{"{", 
+        RowBox[{"i", ",", "1", ",", "13"}], "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"j", ",", "1", ",", "13"}], "}"}]}], "]"}]}], "/.", "q0"}], 
+   ",", 
+   SuperscriptBox["10", 
+    RowBox[{"-", "11"}]]}], "]"}]], "Input",
+ CellLabel->"In[93]:=",ExpressionUUID->"3b901be9-eb44-4c77-8819-369432ed13fe"],
+
+Cell[BoxData[
+ RowBox[{"ave", "=", 
+  RowBox[{
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{
+        SubscriptBox["\[PartialD]", 
+         SubscriptBox["q", "i"]], "\[CapitalLambda]"}], 
+       RowBox[{
+        SubscriptBox["\[PartialD]", 
+         SubscriptBox["q", "13"]], "\[CapitalLambda]"}]]}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "12"}], "}"}]}], "]"}], "/.", 
+   "q0"}]}]], "Input",ExpressionUUID->"d3bdcf97-a73b-4aec-b92e-83417cd46572"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"cov", "=", 
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           SubscriptBox["q", "i"]], 
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "j"]], "\[CapitalLambda]"}]}], "+", 
+         RowBox[{
+          RowBox[{
+          "ave", "\[LeftDoubleBracket]", "j", "\[RightDoubleBracket]"}], " ", 
+          
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "i"]], 
+           RowBox[{
+            SubscriptBox["\[PartialD]", 
+             SubscriptBox["q", "13"]], "\[CapitalLambda]"}]}]}], "+", 
+         RowBox[{
+          RowBox[{
+          "ave", "\[LeftDoubleBracket]", "i", "\[RightDoubleBracket]"}], " ", 
+          
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "13"]], 
+           RowBox[{
+            SubscriptBox["\[PartialD]", 
+             SubscriptBox["q", "j"]], "\[CapitalLambda]"}]}]}], "+", 
+         RowBox[{"2", " ", 
+          RowBox[{
+          "ave", "\[LeftDoubleBracket]", "i", "\[RightDoubleBracket]"}], 
+          RowBox[{
+          "ave", "\[LeftDoubleBracket]", "j", "\[RightDoubleBracket]"}], 
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "13"]], 
+           RowBox[{
+            SubscriptBox["\[PartialD]", 
+             SubscriptBox["q", "13"]], "\[CapitalLambda]"}]}]}]}], 
+        RowBox[{
+         SubscriptBox["\[PartialD]", 
+          SubscriptBox["q", "13"]], "\[CapitalLambda]"}]]}], "/.", "q0"}], 
+     ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "1", ",", "12"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"j", ",", "1", ",", "12"}], "}"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{"cov", "//", "MatrixForm"}]}], "Input",
+ CellLabel->
+  "In[108]:=",ExpressionUUID->"d036da69-7085-4b88-b296-a78d3c32977d"],
+
+Cell[CellGroupData[{
+
+Cell["second approach", \
+"Subsection",ExpressionUUID->"70e08fe2-ae9f-4757-a0b1-db467170b268"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", 
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{"Coefficient", "[", 
+      RowBox[{"\[CapitalLambda]", ",", 
+       SubscriptBox["q", "13"], ",", "i"}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "0", ",", "2"}], "}"}]}], "]"}]}], ";"}]], "Input",
+ CellLabel->
+  "In[105]:=",ExpressionUUID->"de591cdf-0751-4759-96e1-5dfaff44d234"],
+
+Cell[BoxData[
+ RowBox[{"ave2", "=", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{
+        SubscriptBox["\[PartialD]", 
+         SubscriptBox["q", "i"]], 
+        RowBox[{"a", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}]}], 
+       RowBox[{"a", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]]}],
+      "/.", "\[VeryThinSpace]", "q0"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "12"}], "}"}]}], "]"}]}]], "Input",
+ CellLabel->
+  "In[107]:=",ExpressionUUID->"2fd2c0fa-c9f2-48ab-a7ca-1f7f30fb378e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"cov2", "=", 
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           SubscriptBox["q", "i"]], 
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "j"]], 
+           RowBox[{
+           "a", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}]}]}], 
+         "+", 
+         RowBox[{
+          RowBox[{
+          "ave2", "\[LeftDoubleBracket]", "j", "\[RightDoubleBracket]"}], " ", 
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "i"]], 
+           RowBox[{
+           "a", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}]}], 
+         "+", 
+         RowBox[{
+          RowBox[{
+          "ave2", "\[LeftDoubleBracket]", "i", "\[RightDoubleBracket]"}], " ", 
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "j"]], 
+           RowBox[{
+           "a", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}]}], 
+         "+", 
+         RowBox[{"2", " ", 
+          RowBox[{
+          "ave2", "\[LeftDoubleBracket]", "i", "\[RightDoubleBracket]"}], " ", 
+          RowBox[{
+          "ave2", "\[LeftDoubleBracket]", "j", "\[RightDoubleBracket]"}], " ", 
+          RowBox[{
+          "a", "\[LeftDoubleBracket]", "3", "\[RightDoubleBracket]"}]}]}], 
+        RowBox[{
+        "a", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]]}], "/.", 
+      "\[VeryThinSpace]", "q0"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "1", ",", "12"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"j", ",", "1", ",", "12"}], "}"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{"cov2", "//", "MatrixForm"}]}], "Input",
+ CellLabel->
+  "In[113]:=",ExpressionUUID->"fc7d943c-463b-40a9-9076-359118cfdc1e"],
+
+Cell[BoxData[{
+ RowBox[{"Table", "[", " ", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"a", "\[LeftDoubleBracket]", "3", "\[RightDoubleBracket]"}], "/.",
+     "\[VeryThinSpace]", "q0"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"i", ",", "1", ",", "12"}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"j", ",", "1", ",", "12"}], "}"}]}], "]"}], "\[IndentingNewLine]", 
+ RowBox[{"Table", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      SubscriptBox["q", "13"]], 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       SubscriptBox["q", "13"]], "\[CapitalLambda]"}]}], "/.", 
+    "\[VeryThinSpace]", "q0"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"i", ",", "1", ",", "12"}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"j", ",", "1", ",", "12"}], "}"}]}], "]"}]}], "Input",
+ CellLabel->
+  "In[131]:=",ExpressionUUID->"f719e064-5949-4501-ac14-ccf567854164"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Chop", "@", 
+   RowBox[{"(", 
+    RowBox[{
+     RowBox[{"Table", "[", 
+      RowBox[{
+       RowBox[{
+        FractionBox[
+         RowBox[{
+          RowBox[{
+          "ave2", "\[LeftDoubleBracket]", "j", "\[RightDoubleBracket]"}], " ", 
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "i"]], 
+           RowBox[{
+           "a", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}]}], 
+         RowBox[{"a", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]],
+         "/.", "\[VeryThinSpace]", "q0"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"i", ",", "1", ",", "12"}], "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"j", ",", "1", ",", "12"}], "}"}]}], "]"}], "-", 
+     RowBox[{"Table", "[", 
+      RowBox[{
+       RowBox[{
+        FractionBox[
+         RowBox[{
+          RowBox[{
+          "ave", "\[LeftDoubleBracket]", "j", "\[RightDoubleBracket]"}], " ", 
+          
+          RowBox[{
+           SubscriptBox["\[PartialD]", 
+            SubscriptBox["q", "i"]], 
+           RowBox[{
+            SubscriptBox["\[PartialD]", 
+             SubscriptBox["q", "13"]], "\[CapitalLambda]"}]}]}], 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           SubscriptBox["q", "13"]], "\[CapitalLambda]"}]], "/.", 
+        "\[VeryThinSpace]", "q0"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"i", ",", "1", ",", "12"}], "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"j", ",", "1", ",", "12"}], "}"}]}], "]"}]}], ")"}]}], "//", 
+  "MatrixForm"}]], "Input",
+ CellLabel->"In[124]:=",ExpressionUUID->"96ceea8f-d425-4af0-92fe-9d0a00a653ad"]
+}, Open  ]]
+}, Open  ]]
+},
+WindowSize->{1280, 1376},
+WindowMargins->{{Automatic, 0}, {0, Automatic}},
+PrivateNotebookOptions->{"FileOutlineCache"->False},
+FrontEndVersion->"12.0 for Linux x86 (64-bit) (April 8, 2019)",
+StyleDefinitions->"Default.nb"
+]

@@ -269,7 +269,23 @@ tEvoData(Ngen::Int32,aveFtinc::Float64) = tEvoData(Ngen,
 	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),
 	[0.0],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
 
-export tEvoData, tLivingPop
+struct tFluxPattern
+	Nq::Int32
+	V::Vector{Vector{Int32}}	# [ t(e), o(e) ] vector
+	jave::Vector{Vector{Float64}}
+	jcov::Vector{Array{Float64,2}}
+	jcor::Array{Float64,2}
+end
+
+function tFluxPattern(env::atCompEnv,gty::atSystemGty{<:atChannelMetaGty})
+	Nq = gty.pMetaGty[1].dG + 2gty.pMetaGty[1].L
+	tFluxPattern( Nq,
+		[ Vector{Int32}(undef, Nq), Vector{Int32}(undef, Nq) ], [ Vector{Float64}(undef, Nq) for i in eachindex(env.IOidl) ],
+		[ Array{Float64}(undef, Nq, Nq) for i in eachindex(env.IOidl) ], Array{Float64}(undef, Nq, Nq)
+	)
+end
+
+export tEvoData, tLivingPop, tFluxPattern
 
 # *******************
 # TRIVIAL STUFF

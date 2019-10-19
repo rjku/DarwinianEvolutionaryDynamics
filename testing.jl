@@ -86,7 +86,6 @@ function responseFD(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input
 		return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
 	else
 		q0[end] = 10^-14;	y = dΛ(q0);
-
 		if y[end] != 0.0
 			return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
 		else
@@ -171,8 +170,6 @@ function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtr
 		dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
 		ddΛ(q::Vector) = ForwardDiff.hessian(Λ,q)
 
-		# q0[end] = 10^-12
-
 		jave = dΛ(q0)
 		if jave[end] == 0.0
 			q0[end] = 10^-14
@@ -184,11 +181,9 @@ function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtr
 
 		jcov = ddΛ(q0)
 		chopArray!(jcov)
-			# writedlm( "analysis/testJcov", jcov )
 
 		fluxPtrn.jave[i] .= [ -jave[j]/jave[end] for j in 1:Nq ]
 		fluxPtrn.jcov[i] .= [ -( jcov[ji,jj] + jcov[ji,end]*fluxPtrn.jave[i][jj] + jcov[jj,end]*fluxPtrn.jave[i][ji] + jcov[end,end]*fluxPtrn.jave[i][ji]*fluxPtrn.jave[i][jj] )/jave[end] for ji in 1:Nq, jj in 1:Nq ]
-			display( fluxPtrn.jcov[i] )
 		aCrntCorFisherz[i] = broadcast( r -> log( (1 + r)/(1 - r) )/2, [ fluxPtrn.jcov[i][ji,jj] / sqrt( fluxPtrn.jcov[i][ji,ji] * fluxPtrn.jcov[i][jj,jj] ) for ji in 1:Nq, jj in 1:Nq ] )
 
 		q0[end] = 0.0
@@ -196,8 +191,8 @@ function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtr
 
 	fluxPtrn.jcor .= [ tanh( mean( [ aCrntCorFisherz[i][ji,jj] for i in eachindex(env.IOidl) ] ) ) for ji in 1:Nq, jj in 1:Nq ]
 
-	fluxPtrn.V[1] = copy( vcat( gty.pMetaGty[1].V[1], fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(1:gty.pMetaGty[1].L) ) )
-	fluxPtrn.V[2] = copy( vcat( gty.pMetaGty[1].V[2], collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), fill(gty.pMetaGty[1].L2+2,gty.pMetaGty[1].L) ) )
+	fluxPtrn.V[1] .= vcat( gty.pMetaGty[1].V[1], fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(1:gty.pMetaGty[1].L) )
+	fluxPtrn.V[2] .= vcat( gty.pMetaGty[1].V[2], collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), fill(gty.pMetaGty[1].L2+2,gty.pMetaGty[1].L) )
 
 	return 0
 end

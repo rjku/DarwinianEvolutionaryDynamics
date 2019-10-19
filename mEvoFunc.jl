@@ -1,6 +1,6 @@
 
 module mEvoFunc
-using mEvoTypes, Base.Threads, Random, Statistics, SparseArrays, Distributions, ForwardDiff, DelimitedFiles, Dates, Distances, ProgressMeter
+using mEvoTypes, mUtils, Base.Threads, Random, Statistics, SparseArrays, Distributions, ForwardDiff, DelimitedFiles, Dates, Distances, ProgressMeter
 import Future
 
 # threads random generators initialization
@@ -457,14 +457,21 @@ function responseFD(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input
 	W[1:gty.pMetaGty[1].L,end] = Input
 	W[end,end] = -sum(W[1:end-1,end])
 
-	Λ(q::Vector) = det( Array(W .* (1. .+ sparse(fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2,
-		map(e -> - 1. + exp(e), q[1:end-1]),gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L2+1)) ) - q[end] .* I )
+	Λ(q::Vector) = det( Array(W .* ( 1.0 .+ sparse( fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2, map(e -> exp(e) - 1.0, q[1:end-1]),gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L2+1 ) ) ) - q[end] .* I )
 	dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
 
-	q0 = zeros(Float64,gty.pMetaGty[1].L+1)
-	y = dΛ(q0)
+	q0 = zeros(Float64,gty.pMetaGty[1].L+1);	y = dΛ(q0);
 
-	return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
+	if y[end] != 0.0
+		return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
+	else
+		q0[end] = 10^-14;	y = dΛ(q0);
+		if y[end] != 0.0
+			return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
+		else
+			throw( "a₁(0) = 0. Irreducible stochastic matrix ... or numerical error" )
+		end
+	end
 end
 
 # function: constructor of normalized stochastic matrix for disordered channel metagenotype
@@ -533,16 +540,6 @@ export getGStat!
 # **********************************
 # | STATISTICS FUNCTIONS --- ISING \
 # **********************************
-
-function myCov(X::AbstractArray,XAve::Number,Y::AbstractArray,YAve::Number,)
-	N = length(X)
-	N == length(Y) || throw(DimensionMismatch("inconsistent dimensions"))
-	cov = 0.0
-	for (x, y) in zip(X,Y)
-		cov += (x - XAve)*(y - YAve)
-	end
-	return cov/(N-1)
-end
 
 # function: showing the spin config of the ising signal transduction system
 function getSpinStat!(env::tCompEnv,gty::atSystemGty{<:atIsingMetaGty},aSpinAve::Vector{Array{Float64,2}},
@@ -624,94 +621,52 @@ export getSpinStat!, showJij!, getJijStat!
 # | STATISTICS FUNCTIONS --- CHANNEL \
 # ************************************
 
-# function getW(gty::atSystemGty{<:atChannelMetaGty})
-# 	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
-# 	W[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= gty.pMetaGty[1].kout
-# 	for i in 1:gty.pMetaGty[1].L2
-# 		W[i,i] = -sum(W[:,i])
-# 	end
-# 	return W
-# end
-#
-# # function: response of channel using forward differentiation
-# function responseFD(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real} )
-# 	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
-# 	W[1:gty.pMetaGty[1].L,end] = Input
-# 	W[end,end] = -sum(W[1:end-1,end])
-#
-# 	Λ(q::Vector) = det( Array(W .* (1. .+ sparse( fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2,
-# 		map(e -> exp(e) - 1.0, q[1:end-1]),gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L2+1)) ) - q[end] .* I )
-# 	dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
-#
-# 	q0 = zeros(Float64,gty.pMetaGty[1].L+1)
-# 	y = dΛ(q0)
-#
-# 	return [ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
-# end
-#
-# # function: showing the spin config of the ising signal transduction system
-# function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},crntAve::tCrntPattern,
-# 		aCrntCov::Vector{Vector{Float64}},crntCor::Vector{Float64})
-#
-# 	# aCrntAve = Vector{Vector{Array{Int8,2}}}(undef,length(env.IOidl))
-# 	# aCrntCorFisherz = Vector{Array{Float64,2}}(undef,length(env.IOidl))
-#
-# 	W = getW(gty)
-#
-# 	Vout = [ fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2) ]
-# 	Vin = [ collect(1:gty.pMetaGty[1].L), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L) ]
-#
-# 	crntAve.V[1] = copy( vcat( gty.pMetaGty[1].V[1][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG],
-# 		fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(1:gty.pMetaGty[1].L) ) )
-# 	crntAve.V[2] = copy( vcat( gty.pMetaGty[1].V[2][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG],
-# 		collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L) ) )
-#
-# 	q0 = zeros(Float64, gty.pMetaGty[1].Nvbl + 2gty.pMetaGty[1].L + 1 )
-# 	for (i, io) in enumerate(env.IOidl)
-# 		W[1:gty.pMetaGty[1].L,end] = io[1]
-# 		W[end,end] = -sum(W[1:end-1,end])
-#
-# 		Λ(q::Vector) = det( Array(W .*
-# 			( 1.0 .+ sparse( crntAve.V[1][1:gty.pMetaGty[1].Nvbl], crntAve.V[2][1:gty.pMetaGty[1].Nvbl],
-# 				map(e -> exp(e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1 ) ) .*
-# 			( 1.0 .+ sparse( crntAve.V[1][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG], crntAve.V[2][gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG],
-# 				map(e -> exp(-e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) ) .*
-# 			( 1.0 .+ sparse( Vout..., map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+1:aDisChnGty[1].pMetaGty[1].Nvbl+gty.pMetaGty[1].L]),
-# 					gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) ) .*
-# 			( 1.0 .+ sparse( Vin..., map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+gty.pMetaGty[1].L+1:aDisChnGty[1].pMetaGty[1].Nvbl+2gty.pMetaGty[1].L]),
-# 					gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) )
-# 			) - q[end] .* I )
-# 		dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
-#
-# 		y = dΛ(q0)
-# 		[ -y[i]/y[end] for i in 1:gty.pMetaGty[1].L ]
-# 	end
-#
-# 	# for i in eachindex(env.IOidl)
-# 	# 	aan[i] = [ Array{Int8}(undef, gty.pMetaGty[1].L, gty.pMetaGty[1].L) for ismpl in 1:prms.Nsmpl ]
-# 	# 	aSpinCorFisherz[i] = Array{Float64}(undef, gty.pMetaGty[1].L2, gty.pMetaGty[1].L2)
-# 	#
-# 	# 	metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.G), env.IOidl[i][1], aan[i], prms )
-# 	#
-# 	# 	for s in 1:gty.pMetaGty[1].L2
-# 	# 		aSpinAve[i][s] = mean([aan[i][t][s] for t in 1:prms.Nsmpl])
-# 	# 	end
-# 	#
-# 	# 	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
-# 	# 		aSpinCov[i][si,sj] = myCov( [aan[i][t][si] for t in 1:prms.Nsmpl],aSpinAve[i][si],[aan[i][t][sj] for t in 1:prms.Nsmpl],aSpinAve[i][sj] )
-# 	# 	end
-# 	#
-# 	# 	for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
-# 	# 		# aSpinCorFisherz[i][si,sj] = map( r -> log( (1 + r)/(1 - r) )/2, aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si]) )
-# 	# 		aSpinCorFisherz[i][si,sj] = aSpinCov[i][si,sj]/sqrt(aSpinCov[i][sj,sj]*aSpinCov[i][si,si])
-# 	# 	end
-# 	# end
-# 	#
-# 	# for sj in 1:gty.pMetaGty[1].L2, si in 1:gty.pMetaGty[1].L2
-# 	# 	# sCor[si,sj] = tanh( mean( [ aSpinCorFisherz[i][si,sj] for i in 1:length(env.IOidl)] ) )
-# 	# 	sCor[si,sj] = mean( [ aSpinCorFisherz[i][si,sj] for i in eachindex(env.IOidl)] )
-# 	# end
-# end
+function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtrn::tFluxPattern)
+	length(fluxPtrn.jave) == length(env.IOidl) || throw( "inconsistent dimensions between _fluxPtrn.j_ currents and _env.IOidl_" )
+	aCrntCorFisherz = Vector{Array{Float64,2}}(undef,length(env.IOidl))
+
+	W = getW(gty)
+	Nq = gty.pMetaGty[1].dG + 2gty.pMetaGty[1].L
+	q0 = zeros(Float64, Nq + 1)
+	for (i, io) in enumerate(env.IOidl)
+		W[1:gty.pMetaGty[1].L,end] = io[1]
+		W[end,end] = -sum(W[1:end-1,end])
+
+		Λ(q::Vector) = det( Array(W .* ( 1.0 .+
+			sparse( gty.pMetaGty[1].V[1][1:gty.pMetaGty[1].Nvbl], gty.pMetaGty[1].V[2][1:gty.pMetaGty[1].Nvbl], map(e -> exp(e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1 ) .+
+			sparse( gty.pMetaGty[1].V[2][1:gty.pMetaGty[1].Nvbl], gty.pMetaGty[1].V[1][1:gty.pMetaGty[1].Nvbl], map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) .+
+			sparse( fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].dG+1:gty.pMetaGty[1].dG+gty.pMetaGty[1].L]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) .+
+			sparse( collect(1:gty.pMetaGty[1].L), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].dG+gty.pMetaGty[1].L+1:Nq]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) ) ) -
+			q[end] .* I )
+		dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
+		ddΛ(q::Vector) = ForwardDiff.hessian(Λ,q)
+
+		jave = dΛ(q0)
+		if jave[end] == 0.0
+			q0[end] = 10^-14
+			jave = dΛ(q0)
+		end
+		if jave[end] == 0.0
+			throw( "a₁(0) = 0. Irreducible stochastic matrix ... or numerical error" )
+		end
+
+		jcov = ddΛ(q0)
+		chopArray!(jcov)
+
+		fluxPtrn.jave[i] .= [ -jave[j]/jave[end] for j in 1:Nq ]
+		fluxPtrn.jcov[i] .= [ -( jcov[ji,jj] + jcov[ji,end]*fluxPtrn.jave[i][jj] + jcov[jj,end]*fluxPtrn.jave[i][ji] + jcov[end,end]*fluxPtrn.jave[i][ji]*fluxPtrn.jave[i][jj] )/jave[end] for ji in 1:Nq, jj in 1:Nq ]
+		aCrntCorFisherz[i] = broadcast( r -> log( (1 + r)/(1 - r) )/2, [ fluxPtrn.jcov[i][ji,jj] / sqrt( fluxPtrn.jcov[i][ji,ji] * fluxPtrn.jcov[i][jj,jj] ) for ji in 1:Nq, jj in 1:Nq ] )
+
+		q0[end] = 0.0
+	end
+
+	fluxPtrn.jcor .= [ tanh( mean( [ aCrntCorFisherz[i][ji,jj] for i in eachindex(env.IOidl) ] ) ) for ji in 1:Nq, jj in 1:Nq ]
+
+	fluxPtrn.V[1] .= vcat( gty.pMetaGty[1].V[1], fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(1:gty.pMetaGty[1].L) )
+	fluxPtrn.V[2] .= vcat( gty.pMetaGty[1].V[2], collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), fill(gty.pMetaGty[1].L2+2,gty.pMetaGty[1].L) )
+
+	return 0
+end
 
 # *******************
 # I/O FUNCTIONS
