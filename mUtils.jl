@@ -19,4 +19,24 @@ function chopArray!(a::AbstractArray, δ::Float64=10^-12)
 	end
 end
 
+function chopArray!(a::Array{<:Complex}, δ::Float64=10^-12)
+	for (i, e) in enumerate(a)
+		if abs(real(e)) < δ && abs(imag(e)) < δ
+			a[i] = 0.0 + im*0.0
+		elseif abs(real(e)) < δ && abs(imag(e)) >= δ
+			a[i] = 0.0 + im*imag(e)
+		elseif abs(real(e)) >= δ && abs(imag(e)) < δ
+			a[i] = real(e) + im*0.0
+		end
+	end
+end
+
+function MPpdf(λ::Number,r::Number)
+	λm = (1 - sqrt(r))^2;	λp = (1 + sqrt(r))^2
+
+	return [ (λ >= λm) && (λ <= λp) ? sqrt( (λp - λ)*(λ - λm) )/( 2pi*r*λ ) : 0.0, λm, λp ]
+end
+
+export myCov, chopArray!, MPpdf
+
 end

@@ -1,6 +1,9 @@
 
 module mEvoFunc
-using mEvoTypes, mUtils, Base.Threads, Random, Statistics, SparseArrays, Distributions, ForwardDiff, DelimitedFiles, Dates, Distances, ProgressMeter
+using Base.Threads, SparseArrays
+using LinearAlgebra, Random, Statistics, Distributions, ForwardDiff, Distances
+using mEvoTypes, mUtils
+using DelimitedFiles, Dates, ProgressMeter
 import Future
 
 # threads random generators initialization
@@ -8,7 +11,7 @@ const THREADRNG = let m = MersenneTwister(1)
             [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
         end;
 
-const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = .001, .99, 3.0, 12
+const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = .001, .99, 3.0, 8
 
 # initializer constructor for discrete time evolution. Same MetaGenotype for all.
 function initLivingPop( N::Int32,ety::Tety,env::Tenv,aMGty::Vector{Tmgty},aGty::Vector{Tgty} ) where {
@@ -150,10 +153,10 @@ function effMutation!(pop::tLivingPop)
 end
 
 # function. effective selection: pruning of the population
-function effSelection!(pop::tLivingPop, ubermode::Bool)
+function effSelection!(pop::tLivingPop, elite::Bool)
 	popGtyRef::Array{atGenotype,1} = copy(pop.aGty)
 
-	if ubermode
+	if elite
 		# survival of the fittest
 		survivedGty = sortperm([pop.aGty[i].pF[1] for i in 1:pop.pN[1]],rev=true)
 		# sort!(pop.aGty, by= x -> x.pF[1], rev=true)
@@ -170,8 +173,8 @@ function effSelection!(pop::tLivingPop, ubermode::Bool)
 end
 
 # function. condition for genotypic upgrade
-function upgradeCondition(gty::atSystemGty{<:atIsingMetaGty})
-	return gty.pF[1] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < MAXSIZE
+function upgradeCondition(gty::atSystemGty{<:atIsingMetaGty},maxSize::Integer)
+	return gty.pF[1] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < maxSize
 end
 
 # function. new genotypic variables choice. additive genotype case
@@ -232,27 +235,40 @@ function upgradeGtyG!(gty::atSystemGty{<:atIsingMetaGty})
 end
 
 # function. upgrade metagenotype
-function upgradeMetaGty!(ety::atEvotype,aMetaGty::Vector{<:tIsingSigTransMGty},gty::atSystemGty{<:tIsingSigTransMGty})
+function upgradeMetaGty!(ety::atEvotype,aMetaGty::Vector{<:tIsingSigTransMGty},gty::atSystemGty{<:tIsingSigTransMGty},evo::tEvoData)
 	foundMetaGty = false
-	for metaGty in aMetaGty
-		if gty.pMetaGty[1].L+2 == metaGty.L
+
+	im = 2
+	while !foundMetaGty && im <= length(aMetaGty)
+		if gty.pMetaGty[1].L+2 == aMetaGty[im].L
 			foundMetaGty = true
-			gty.pMetaGty[1] = metaGty
+			gty.pMetaGty[1] = aMetaGty[im]
 		end
 	end
+
+	# for metaGty in aMetaGty
+	# 	if gty.pMetaGty[1].L+2 == metaGty.L
+	# 		foundMetaGty = true
+	# 		gty.pMetaGty[1] = metaGty
+	# 		break
+	# 	end
+	# end
+
 	if !foundMetaGty
 		push!( aMetaGty, tIsingSigTransMGty(gty.pMetaGty[1].L+Int32(2),gty.pMetaGty[1].β,gty.pMetaGty[1].he,gty.pMetaGty[1].prms) )
 		gty.pMetaGty[1] = aMetaGty[end]
+		evo.pAveFt = 0.0
+		evo.pMaxF[1] += 1.0
 		# set_tDscdtEtyFactors(ety,gty)
 	end
 end
 
 # function. evolutionary upgrade
-function evoUpgrade!(pop::tLivingPop)
+function evoUpgrade!(pop::tLivingPop,evo::tEvoData,maxSize::Integer)
 	for i in 1:pop.pN[2]
-		if upgradeCondition(pop.aGty[i])
+		if upgradeCondition(pop.aGty[i],maxSize)
 			upgradeGtyG!(pop.aGty[i])
-			upgradeMetaGty!(pop.ety,pop.aMetaGty,pop.aGty[i])
+			upgradeMetaGty!(pop.ety,pop.aMetaGty,pop.aGty[i],evo)
 			fitness!(pop.env,pop.aGty[i])
 		end
 	end
@@ -260,13 +276,15 @@ end
 
 # function: set next evolutionary achievement
 function setNextAch!(evo::tEvoData,gen::Integer)
-	while evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
+	while evo.aveFitness[gen] >= evo.pMaxF[1] - 10^( -evo.pAveFt[1] )
 		evo.pAveFt[1] += evo.aveFtinc
 	end
 end
 
+# Fave + ( 1. - ( Fave % 1 ) ) % ( 1/3 ) + .2
+
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
-function evolutionGKP!(pop::tLivingPop,evo::tEvoData;ubermode::Bool=false)
+function evolutionGKP!(pop::tLivingPop,evo::tEvoData;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
@@ -279,29 +297,26 @@ function evolutionGKP!(pop::tLivingPop,evo::tEvoData;ubermode::Bool=false)
 
 		evo.growthFactor[gen] = replication!(pop)
 		evo.mutationFactor[gen] = effMutation!(pop)
-		effSelection!(pop,ubermode)
+		effSelection!(pop,elite)
 	end
 end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
-function evolutionGKPup!(pop::tLivingPop,evo::tEvoData;ubermode::Bool=false)
-
-	push!(evo.aLivingPop,deepcopy(pop))
-	push!(evo.aGen,1)
+function evolutionGKPup!(pop::tLivingPop,evo::tEvoData,maxSize::Integer;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
-		if evo.aveFitness[gen] >= evo.pAveFt[1]
+		if evo.aveFitness[gen] >= evo.pMaxF[1] - 10^( -evo.pAveFt[1] )
 			push!(evo.aLivingPop,deepcopy(pop))
 			push!(evo.aGen,gen)
-			evo.pAveFt[1] += evo.aveFtinc
+			setNextAch!(evo,gen)
 			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.aveFitness[gen] )
 		end
 
 		evo.growthFactor[gen] = replication!(pop)
 		evo.mutationFactor[gen] = effMutation!(pop)
-		effSelection!(pop,ubermode)
-		evoUpgrade!(pop)
+		effSelection!(pop,elite)
+		evoUpgrade!(pop,evo,maxSize)
 	end
 end
 
@@ -329,10 +344,10 @@ function flipping!(istMGty::tIsingSigTransMGty, βJij::Array{<:Real,1}, βhi::Re
 	i, j = rand(rng,1:istMGty.L), rand(rng,1:istMGty.L)
 	# transitioning?!
 	if i > istMGty.li || j > istMGty.li
-		if rand(rng) < ( 1. - n[i,j]*tanh(
+		if rand(rng) < ( 1.0 - n[i,j]*tanh(
 				βJij[istMGty.Jpi[i,j]]*n[istMGty.jp[i],j] + βJij[istMGty.Jmi[i,j]]*n[istMGty.jm[i],j] +
 				βJij[istMGty.Jpj[i,j]]*n[i,istMGty.jp[j]] + βJij[istMGty.Jmj[i,j]]*n[i,istMGty.jm[j]] +
-				istMGty.βhe ))/2
+				istMGty.βhe ))/2.0
 			n[i,j] = - n[i,j]
 		end
 	# else
@@ -346,7 +361,6 @@ function flipping!(istMGty::tIsingSigTransMGty, βJij::Array{<:Real,1}, βhi::Re
 end
 
 # MonteCarlo simulation function for ising signal transduction: readout magnetization evaluation
-# 	( tIsingST istMGty, interaction matrix Jij, input field h ) → readout magnetization m
 function metropolis(istMGty::tIsingSigTransMGty,Jij::Array{T,1},hi::T)::Real where {T<:Real}
 	βJij::Array{Float64,1} = Jij*istMGty.β;		βhi::Float64 = hi*istMGty.β
 
@@ -406,9 +420,9 @@ function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:at
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		d2::Float64 = 0.0
 		for io in env.IOidl
-			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10^(x),gty.G),io[1]) - io[2] )^2
+			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10.0^(x),gty.G),io[1]) - io[2] )^2
 		end
-		fValues[t] = exp(-sqrt(d2)/env.selFactor)
+		fValues[t] = exp(-d2*env.selFactor)
 	end
 	return minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
 end
@@ -501,14 +515,14 @@ function response(gty::atSystemGty{<:atChannelMetaGty},Input::Vector{<:Real})
 	response(gty, W, Input)
 end
 
-function fitness(istEnv::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSystemGty{<:atChannelMetaGty})::Float64
+function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSystemGty{<:atChannelMetaGty})::Float64
 	W = getWnrmd(gty)
 
 	d2::Float64 = 0.0
-	for io in istEnv.IOidl
+	for io in env.IOidl
 		d2 += sum( (response(gty, W, io[1]) - io[2]).^2 )
 	end
-	return exp(-d2/istEnv.selFactor)
+	return exp(-d2*env.selFactor)
 end
 
 export tDisChnMGty, response
@@ -518,20 +532,20 @@ export tDisChnMGty, response
 # | STATISTICS FUNCTIONS  \
 # *************************
 
-function getGStat!(pop::tLivingPop,GAve::Vector{Float64},GCov::Array{Float64,2},GCor::Array{Float64,2})
+function getGStat!(pop::tLivingPop,Gstat::tStat)
 	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dG, &, [ pop.aGty[i].pMetaGty[1].dG for i in 2:pop.pN[2] ] ) ||
 		throw(DimensionMismatch("inconsistent dimensions"))
 
 	for x in 1:pop.aGty[1].pMetaGty[1].dG
-		GAve[x] = mean( [pop.aGty[i].G[x] for i in 1:pop.pN[2]] )
+		Gstat.ave[x] = mean( [pop.aGty[i].G[x] for i in 1:pop.pN[2]] )
 	end
 
 	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
-		GCov[x,y] = myCov( [ pop.aGty[i].G[x] for i in 1:pop.pN[2] ], GAve[x], [ pop.aGty[i].G[y] for i in 1:pop.pN[2] ], GAve[y] )
+		Gstat.cov[x,y] = myCov( [ pop.aGty[i].G[x] for i in 1:pop.pN[2] ], Gstat.ave[x], [ pop.aGty[i].G[y] for i in 1:pop.pN[2] ], Gstat.ave[y] )
 	end
 
 	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
-		GCor[x,y] = GCov[x,y]/sqrt(GCov[x,x]*GCov[y,y])
+		Gstat.cor[x,y] = Gstat.cov[x,y]/sqrt(Gstat.cov[x,x]*Gstat.cov[y,y])
 	end
 end
 
@@ -621,7 +635,8 @@ export getSpinStat!, showJij!, getJijStat!
 # | STATISTICS FUNCTIONS --- CHANNEL \
 # ************************************
 
-function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtrn::tFluxPattern)
+# fills fluxPtrn type with the flux patterns of the genotype in its differnt environments
+function getFluxStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtrn::tFluxPattern)
 	length(fluxPtrn.jave) == length(env.IOidl) || throw( "inconsistent dimensions between _fluxPtrn.j_ currents and _env.IOidl_" )
 	aCrntCorFisherz = Vector{Array{Float64,2}}(undef,length(env.IOidl))
 
@@ -667,6 +682,66 @@ function getCrntStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtr
 
 	return 0
 end
+
+function getCrntPtrn!(gty::atSystemGty{<:atChannelMetaGty},fluxPtrn::tFluxPattern,crntPtrn::tCrntPattern)
+	Ncrnt = Int32(gty.pMetaGty[1].dG/2)
+	for (io,jave) in enumerate(fluxPtrn.jave)
+		for i in 1:Ncrnt
+			if jave[i] > jave[i + Ncrnt]
+				crntPtrn.aV[io][1][i] = fluxPtrn.V[1][i]
+				crntPtrn.aV[io][2][i] = fluxPtrn.V[2][i]
+				crntPtrn.Jave[io][i] = jave[i] - jave[i + Ncrnt]
+			else
+				crntPtrn.aV[io][1][i] = fluxPtrn.V[2][i]
+				crntPtrn.aV[io][2][i] = fluxPtrn.V[1][i]
+				crntPtrn.Jave[io][i] = jave[i + Ncrnt] - jave[i]
+			end
+		end
+		crntPtrn.aV[io][1][Ncrnt+1:Ncrnt+2gty.pMetaGty[1].L] .= fluxPtrn.V[1][gty.pMetaGty[1].dG+1:gty.pMetaGty[1].dG+2gty.pMetaGty[1].L]
+		crntPtrn.aV[io][2][Ncrnt+1:Ncrnt+2gty.pMetaGty[1].L] .= fluxPtrn.V[2][gty.pMetaGty[1].dG+1:gty.pMetaGty[1].dG+2gty.pMetaGty[1].L]
+		crntPtrn.Jave[io][Ncrnt+1:Ncrnt+2gty.pMetaGty[1].L] = jave[gty.pMetaGty[1].dG+1:gty.pMetaGty[1].dG+2gty.pMetaGty[1].L]
+	end
+end
+
+function response!(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real},p)
+	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
+	W[1:gty.pMetaGty[1].L,end] = Input
+	b = zeros(Float64,gty.pMetaGty[1].L2+1);	b[end] = 1.0
+
+	p .= ( W \ b )[1:end-1]
+end
+
+function collectResponses!(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},aResp::AbstractArray)
+	i = 0
+	for gty in pop.aGty[1:pop.pN[2]]
+		W = getWnrmd(gty)
+		for io in pop.env.IOidl
+			response!(gty,W,io[1],view(aResp,i+=1,:))
+		end
+	end
+end
+
+function getRStat!(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},Rstat::tStat)
+
+	aResp = Array{Float64}(undef, pop.pN[2]*length(pop.env.IOidl), pop.aMetaGty[1].L2)
+	collectResponses!(pop,aResp)
+
+	for x in 1:pop.aMetaGty[1].L2
+		Rstat.ave[x] = mean( aResp[:,x] )
+	end
+
+	for y in 1:pop.aMetaGty[1].L2, x in 1:pop.aMetaGty[1].L2
+		Rstat.cov[x,y] = myCov( aResp[:,x], Rstat.ave[x], aResp[:,y], Rstat.ave[y] )
+	end
+
+	for y in 1:pop.aMetaGty[1].L2, x in 1:pop.aMetaGty[1].L2
+		Rstat.cor[x,y] = Rstat.cov[x,y]/sqrt(Rstat.cov[x,x]*Rstat.cov[y,y])
+	end
+
+	return aResp
+end
+
+export getFluxStat!, response!, collectResponses!, getRStat!
 
 # *******************
 # I/O FUNCTIONS

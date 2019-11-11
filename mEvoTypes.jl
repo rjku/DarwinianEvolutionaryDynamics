@@ -226,12 +226,7 @@ struct tDisChnMGty <: atChannelMetaGty
 	kout::Float64				# output rate constant
 end
 
-struct tCrntPattern
-	V::Vector{Vector{Int32}}	# [ t(e), o(e) ] vector
-	aJ::Vector{Vector{Float64}}
-end
-
-export tIsingSigTransMGty, tDisChnMGty, tCrntPattern
+export tIsingSigTransMGty, tDisChnMGty
 
 # -------------------
 #   POPULATION and DATA
@@ -255,20 +250,26 @@ struct tEvoData
 
 	pAveFt::Vector{Float64}
 	aveFtinc::Float64
+	pMaxF::Vector{Float64}
 
 	aGen::Vector{Int32}
 	aLivingPop::Vector{tLivingPop}
 end
 
-# initializer constructor
-tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(Ngen,
-	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),
-	[aveFt],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
+# initializer constructors
+tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(
+	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
+	[aveFt], aveFtinc, [1.0],
+	Array{Int32}(undef,0), Array{tLivingPop}(undef,0)
+)
 
-tEvoData(Ngen::Int32,aveFtinc::Float64) = tEvoData(Ngen,
-	Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),Array{Float64}(undef,Ngen),
-	[0.0],aveFtinc,Array{Int32}(undef,0),Array{tLivingPop}(undef,0))
+tEvoData(Ngen::Int32,aveFtinc::Float64) = tEvoData(
+	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
+	[0.0], aveFtinc, [1.0],
+	Array{Int32}(undef,0), Array{tLivingPop}(undef,0)
+)
 
+# type: flux pattern
 struct tFluxPattern
 	Nq::Int32
 	V::Vector{Vector{Int32}}	# [ t(e), o(e) ] vector
@@ -280,12 +281,42 @@ end
 function tFluxPattern(env::atCompEnv,gty::atSystemGty{<:atChannelMetaGty})
 	Nq = gty.pMetaGty[1].dG + 2gty.pMetaGty[1].L
 	tFluxPattern( Nq,
-		[ Vector{Int32}(undef, Nq), Vector{Int32}(undef, Nq) ], [ Vector{Float64}(undef, Nq) for i in eachindex(env.IOidl) ],
-		[ Array{Float64}(undef, Nq, Nq) for i in eachindex(env.IOidl) ], Array{Float64}(undef, Nq, Nq)
+		[ Vector{Int32}(undef, Nq), Vector{Int32}(undef, Nq) ],
+		[ Vector{Float64}(undef, Nq) for i in eachindex(env.IOidl) ],
+		[ Array{Float64}(undef, Nq, Nq) for i in eachindex(env.IOidl) ],
+		Array{Float64}(undef, Nq, Nq)
 	)
 end
 
-export tEvoData, tLivingPop, tFluxPattern
+struct tCrntPattern
+	Nq::Int32
+	aV::Vector{Vector{Vector{Int32}}}	# [ t(e), o(e) ] vectors for each i/o
+	Jave::Vector{Vector{Float64}}
+end
+
+function tCrntPattern(env::atCompEnv,gty::atSystemGty{<:atChannelMetaGty})
+	Nq = Int32(gty.pMetaGty[1].dG/2 + 2gty.pMetaGty[1].L)
+	tCrntPattern( Nq,
+		[ [ Vector{Int32}(undef, Nq), Vector{Int32}(undef, Nq) ] for i in eachindex(env.IOidl) ],
+		[ Vector{Float64}(undef, Nq) for i in eachindex(env.IOidl) ]
+	)
+end
+
+struct tStat{Tave<:Vector{<:Number},Tcov<:Array{<:Number}}
+	ave::Tave
+	cov::Tcov
+	cor::Tcov
+end
+
+tStat(gty::atSystemGty) = tStat(
+	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG),
+	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG,gty.pMetaGty[1].dG),
+	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG,gty.pMetaGty[1].dG)
+)
+
+tStat(Nv::Int32) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv), Array{Float64}(undef,Nv,Nv) )
+
+export tEvoData, tLivingPop, tFluxPattern, tCrntPattern, tStat
 
 # *******************
 # TRIVIAL STUFF

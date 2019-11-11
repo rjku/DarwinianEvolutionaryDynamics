@@ -203,29 +203,97 @@ testGty = tCntGty([testChannel],[ rand() for i in 1:testChannel.dG ],[0.0,1.0] )
 testEnv = tCompEnv([ [ Float64[rand(Bool) + 0.001 for i in 1:L], Float64[rand(Bool) for i in 1:L] ] for i in 1:Nio ],1.0)
 testFluxPtrn = tFluxPattern(testEnv, testGty)
 
-getCrntStat!(testEnv,testGty,testFluxPtrn)
-display( testFluxPtrn.jcov[2] )
-display( testFluxPtrn.jcor )
+struct tStat{Tave<:Vector{<:Number},Tcov<:Array{<:Number}}
+	ave::Tave
+	cov::Tcov
+	cor::Tcov
+end
 
-responseFD(testGty,getW(testGty),testEnv.IOidl[1][1]) ≈ response(testGty,getWnrmd(testGty),testEnv.IOidl[1][1])
-display(responseFD(testGty,getW(testGty),testEnv.IOidl[1][1]))
-display(response(testGty,getWnrmd(testGty),testEnv.IOidl[1][1]))
-println(fitness(testEnv,testGty))
+tStat(gty::atSystemGty) = tStat(
+	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG),
+	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG,gty.pMetaGty[1].dG),
+	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG,gty.pMetaGty[1].dG)
+)
 
-display(filter( e -> e < 0.0, testFluxPtrn.jcov[1] ))
-display(filter( e -> e < 0.0, testFluxPtrn.jcov[1] ))
-display(filter( e -> e < 0.0, diag(testFluxPtrn.jcov[1]) ))
-display(filter( e -> e < 0.0, diag(testFluxPtrn.jcov[2]) ))
+tStat(Nv::Int32) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv), Array{Float64}(undef,Nv,Nv) )
+
+testGstat = tStat(testGty)
+testRstat = tStat(L^2)
+
+function nullify!(v)
+	v .= collect(1:length(v))
+end
+
+testVec = rand(4)
+testMat = rand(4,6)
+
+nullify!(view(testMat,1,:))
+nullify!(testVec)
+
+display(testMat)
+display(view(testMat,0,:))
+# display(testVec)
+
+function response!(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real},p::Vector{<:Real})
+	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
+	W[1:gty.pMetaGty[1].L,end] = Input
+	b = zeros(Float64,gty.pMetaGty[1].L2+1);	b[end] = 1.0
+
+	p .= ( W \ b )[1:end-1]
+end
+
+function collectResponses!(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},aResp::AbstractArray)
+	i = 0
+	for gty in pop.aGty
+		W = getWnrmd(gty)
+		for io in pop.env.IOidl
+			response!(gty,W,io[1],view(aResp,i+=1,:))
+		end
+	end
+end
+
+function getRStat!(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},Rstat::tStat)
+
+	aResp = Array{Float64}(undef, pop.pN[2]*length(pop.env.IOidl), pop.pMetaGty[1].L2)
+	collectResponses!(pop,aResp)
+
+	for x in 1:pop.pMetaGty[1].L2
+		Rstat.ave[x] = mean( aResp[:,x] )
+	end
+
+	for y in 1:pop.pMetaGty[1].L2, x in 1:pop.pMetaGty[1].L2
+		Rstat.cov[x,y] = myCov( aResp[:,x], Rstat.ave[x], aResp[:,y], Rstat.ave[y] )
+	end
+
+	for y in 1:pop.pMetaGty[1].L2, x in 1:pop.pMetaGty[1].L2
+		Rstat.cor[x,y] = Rstat.cov[x,y]/sqrt(Rstat.cov[x,x]*Rstat.cov[y,y])
+	end
+end
+
+# getCrntStat!(testEnv,testGty,testFluxPtrn)
+# display( testFluxPtrn.jcov[2] )
+# display( testFluxPtrn.jcor )
+
+# responseFD(testGty,getW(testGty),testEnv.IOidl[1][1]) ≈ response(testGty,getWnrmd(testGty),testEnv.IOidl[1][1])
+# display(responseFD(testGty,getW(testGty),testEnv.IOidl[1][1]))
+# display(response(testGty,getWnrmd(testGty),testEnv.IOidl[1][1]))
+# println(fitness(testEnv,testGty))
+#
+# display(filter( e -> e < 0.0, testFluxPtrn.jcov[1] ))
+# display(filter( e -> e < 0.0, testFluxPtrn.jcov[1] ))
+# display(filter( e -> e < 0.0, diag(testFluxPtrn.jcov[1]) ))
+# display(filter( e -> e < 0.0, diag(testFluxPtrn.jcov[2]) ))
 
 # using PyPlot
 # imshow(testFluxPtrn.jcor,cmap="viridis"); colorbar();
 
-# LWidths = 5.0 .* map(e->(e),fluxPtrn.j[1]) ./ ( maximum(fluxPtrn.j[1]) ) .+ 10^(-8)
 # LWidths = 10*rand(length(crntAve.J[1]))
 
-# mat"""
-# G = digraph($(fluxPtrn.V[2]),$(fluxPtrn.V[1]),$(fluxPtrn.j[1]))
 # G.Edges.EdgeColor = $(LWidths)
+
+# lwidths = 5.0 .* map(e->(e),testfluxptrn.jave[1]) ./ ( maximum(testfluxptrn.jave[1]) ) .+ 10^(-8)
+# mat"""
+# G = digraph($(testFluxPtrn.V[2]),$(testFluxPtrn.V[1]),$(testFluxPtrn.jave[1]))
 # plot(G,'Layout','force','LineWidth',$(LWidths))
 # """
 
@@ -265,3 +333,14 @@ display(filter( e -> e < 0.0, diag(testFluxPtrn.jcov[2]) ))
 # 	$v = $x - $y
 # """
 # @show u v               # u and v are accessible from Julia
+
+testVec = rand(5)
+display(testVec)
+
+function manipulate!(vec)
+	vec[1:2] .= [1,2,3][1:2]
+	return 0
+end
+
+manipulate!(testVec)
+display(testVec)

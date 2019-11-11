@@ -16,38 +16,49 @@
 using Revise, BenchmarkTools, Statistics, LinearAlgebra, Statistics, PyPlot, mEvoTypes
 import mEvoFunc
 
-# %matplotlib notebook
+# +
+# data constants
+const NBATCHES, LOGFASMPL = 1, 1/2
 
-const NBATCHES, NGEN, NPOP, SYSTEMSIZE, MAXSIZE = 8, Int32(25), Int32(25), Int32(6), Int32(12)
+# evolution and population constants
+const NGEN, NPOP = Int32(5), Int32(5)
+const REPFACTOR, PNTMUTFACTOR, NMUTMAX = 10.0, 0.07, Int32(15)
+
+# metagenotypic constants
+const SYSTEMSIZE, MAXSIZE = Int32(6), Int32(8)
 const INVTEMPERATURE, EXTERNALFIELD = 0.8, 0.1
-const REPRATE, MUTRATE, SELSTRENGTH = 10.0^7, 10.0^3, 1.0
-const REPFACTOR, PNTMUTFACTOR, SELSTRENGTH = 10.0, 0.05, 1.0
-const DELTAG, DELTATOFFSET = 1/3, 0.01
 const GMIN, GMAX = -2.0, 2.0
+# const DELTAG, DELTATOFFSET = 1/3, 0.01
+
+# environmental constants
+const SELSTRENGTH, NIO = 1.0, Int32(2);
+const HIGHFLOW, LOWFLOW = 1.0, 10.0^-3;
+
+# fast-time-scale dynamics constants
 const NSAMPLINGS, NMCSPS, NTRIALS = Int32(20), Int32(10^5), Int32(1);
 
-isingEnv = tCompEnv([ [-1.0,-1.0], [1,1.0] ],SELSTRENGTH)
-isingEty = tPntMutEty(REPFACTOR, PNTMUTFACTOR, [ 2L^2 for L in SYSTEMSIZE:2:MAXSIZE ], 12);
+# -
+
+isingEnv = tCompEnv( [[-1.0,-1.0], [1,1.0]], SELSTRENGTH )
+isingEty = tPntMutEty(REPFACTOR, PNTMUTFACTOR, [ 2L^2 for L in SYSTEMSIZE:2:MAXSIZE ], NMUTMAX);
 isingDTMCprm = tDTMCprm( NSAMPLINGS, NMCSPS, NTRIALS );
 
 aIsingMGty = [ tIsingSigTransMGty(SYSTEMSIZE,INVTEMPERATURE,EXTERNALFIELD,isingDTMCprm) ];
-aIsingGty = [ tCntGty( [aIsingMGty[1]], GMIN .+ rand(2SYSTEMSIZE^2) .* (GMAX - GMIN), [GMIN,GMAX] ) for i in 1:3NPOP ];
-aIsingData = tEvoData[];
+aIsingGty = [ tCntGty( [aIsingMGty[1]], GMIN .+ rand(2SYSTEMSIZE^2) .* (GMAX - GMIN), [GMIN,GMAX] ) for i in 1:REPFACTOR*NPOP ];
 
 @time isingPop = mEvoFunc.initLivingPop( NPOP,isingEty,isingEnv,aIsingMGty,aIsingGty );
 
-for i in 1:NBATCHES
-	Fave = mean( [isingPop.aGty[i].pF[1] for i in 1:isingPop.pN[2]] )
-	push!( aIsingData, tEvoData(NGEN, Fave + ( 1. - ( Fave % 1 ) ) % (1/3) + .2, 1/3) )
-    @time mEvoFunc.evolutionGKPup!(isingPop,aIsingData[end],ubermode=true)
-end
-push!( aIsingData[end].aLivingPop,deepcopy(isingPop) );
+aIsingData = tEvoData[];
 
-lastBatch = 2
-subplots(3,1,figsize=(5,10))
-subplot(311); title("Average Fitness"); plot( vcat([dataBtc.aveFitness for dataBtc in aIsingData[1:lastBatch]]...) );
-subplot(312); title("Growth Factor"); plot( vcat([dataBtc.growthFactor for dataBtc in aIsingData[1:lastBatch]]...) );
-subplot(313); title("Mutation Factor"); plot( vcat([dataBtc.mutationFactor for dataBtc in aIsingData[1:lastBatch]]...) );
+for i in 1:NBATCHES
+	push!( aIsingData, tEvoData(NGEN, LOGFASMPL) )
+    mEvoFunc.evolutionGKPup!(isingPop,aIsingData[end],MAXSIZE,elite=true)
+end
+
+subplots(3,1,figsize=(7.5,7.5))
+subplot(311); title("Average Fitness"); plot( vcat([dataBtc.aveFitness for dataBtc in aIsingData]...) );
+subplot(312); title("Growth Factor"); plot( vcat([dataBtc.growthFactor for dataBtc in aIsingData]...) );
+subplot(313); title("Mutation Factor"); plot( vcat([dataBtc.mutationFactor for dataBtc in aIsingData]...) );
 tight_layout();
 
 
