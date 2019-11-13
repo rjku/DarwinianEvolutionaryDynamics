@@ -40,11 +40,30 @@ export initLivingPop
 # | PROPER EVOLUTIONARY FUNCTIONS \
 # *********************************
 
+# function. population replication for one niche
+function replicationOne!(pop::tLivingPop)
+	Kr = pop.ety.pRepFactor[1]*pop.aGty[1].pF[1]
+	ipKr = trunc(Int32,Kr)
+	G::Int32 = rand(THREADRNG[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr
+
+	for inew in 1:G
+		pop.pN[1] += 1
+		if pop.pN[1] <= pop.pN[3]
+			pop.aGty[pop.pN[1]] = deepcopy(pop.aGty[1])
+		else
+			pop.pN[3] += 1
+			push!(pop.aGty,pop.aGty[1])
+		end
+	end
+
+	return G
+end
+
 # function. population replication!
 function replication!(pop::tLivingPop)
-	G = zeros(Int32,pop.pN[2])
 	Kr = Vector{Float64}(undef,nthreads())
 	ipKr = Vector{Int32}(undef,nthreads())
+	G = zeros(Int32,pop.pN[2])
 
 	@threads for i in 1:pop.pN[2]
 		Kr[threadid()] = pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]
@@ -143,13 +162,36 @@ function blindMutation!(gty::tCntGty,ety::atPntMutEty)
 end
 
 # function. effective mutation: blindly mutate the population's genotype according to the effective dynamical mutation rate
-function effMutation!(pop::tLivingPop)
-	Nmutations = zeros(Int32,nthreads())
-	@threads for i in 1:pop.pN[1]
-		Nmutations[threadid()] += blindMutation!(pop.aGty[i],pop.ety)
-		fitness!(pop.env,pop.aGty[i])
+function effMutationOne!(pop::tLivingPop)
+	aNmut = Vector{Int32}(undef,pop.pN[1])
+	for i in 1:pop.pN[1]
+		aNmut[i] = blindMutation!(pop.aGty[i],pop.ety)
+		if aNmut[i] > 0
+			fitness!(pop.env,pop.aGty[i])
+		end
 	end
-	return sum(Nmutations)/pop.pN[2] 	# normalized number of mutations
+	return sum(aNmut)
+end
+
+# function. effective mutation: blindly mutate the population's genotype according to the effective dynamical mutation rate
+function effMutation!(pop::tLivingPop)
+	aNmut = Vector{Int32}(undef,pop.pN[1])
+	@threads for i in 1:pop.pN[1]
+		aNmut[i] = blindMutation!(pop.aGty[i],pop.ety)
+		if aNmut[i] > 0
+			fitness!(pop.env,pop.aGty[i])
+		end
+	end
+	return sum(aNmut)/pop.pN[2] 	# normalized number of mutations
+end
+
+# function. selection of the fittest within the niche population
+function effSelectionOne!(pop::tLivingPop)
+	fmax = maximum([ gty.pF[1] for gty in pop.aGty[1:pop.pN[1]] ])
+	iGty = findall( f -> f == fmax, [ gty.pF[1] for gty in pop.aGty[1:pop.pN[1]] ] )[1]
+
+	pop.aGty[1] = pop.aGty[iGty]
+	pop.pN[1] = pop.pN[2]
 end
 
 # function. effective selection: pruning of the population
@@ -281,7 +323,39 @@ function setNextAch!(evo::tEvoData,gen::Integer)
 	end
 end
 
+function oneNicheEvo!(truePop::tLivingPop,aPop::Vector{<:tLivingPop})
+	aG = zeros(Int32,truePop.pN[2])
+	aNmut = zeros(Int32,truePop.pN[2])
+
+	@threads for i in eachindex(aPop)
+		aG[i] = replicationOne!(aPop[i])
+		aNmut[i] = effMutationOne!(aPop[i])
+		effSelectionOne!(aPop[i])
+	end
+
+	truePop.aGty[1:truePop.pN[2]] .= [ aPop[i].aGty[1] for i in 1:truePop.pN[2] ]
+
+	return log( (sum(aG) + truePop.pN[2])/truePop.pN[2] ), sum(aNmut)/truePop.pN[2]
+end
+
 # Fave + ( 1. - ( Fave % 1 ) ) % ( 1/3 ) + .2
+
+# function: genetic evolution with selection within individual niches
+function evolutionOneNiches!(pop::tLivingPop,evo::tEvoData)
+	aNichePop = [ initLivingPop( Int32(1), pop.ety, pop.env, pop.aMetaGty, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
+
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
+			push!(evo.aLivingPop,deepcopy(pop))
+			push!(evo.aGen,gen)
+			setNextAch!(evo,gen)
+			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.aveFitness[gen] )
+		end
+
+		evo.growthFactor[gen], evo.mutationFactor[gen] = oneNicheEvo!(pop, aNichePop)
+	end
+end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
 function evolutionGKP!(pop::tLivingPop,evo::tEvoData;elite::Bool=false)
@@ -320,7 +394,8 @@ function evolutionGKPup!(pop::tLivingPop,evo::tEvoData,maxSize::Integer;elite::B
 	end
 end
 
-export replication!, effMutation!, effSelection!, evoUpgrade!, upgradeGtyG!, setNextAch!, evolutionGKP!, evolutionGKPup!
+export oneNicheEvo!, replication!, effMutation!, effSelection!, evoUpgrade!, upgradeGtyG!, setNextAch!
+export evolutionOneNiches!, evolutionGKP!, evolutionGKPup!
 
 # =============
 # |  SYSTEMS  \
