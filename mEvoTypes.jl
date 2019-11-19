@@ -86,24 +86,26 @@ struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:Abstr
 	pMetaGty::Tpmgty
 	G::Tag
 	Δg::Tg
+	pT::Vector{Float64}
 	pF::Vector{Float64}
 end
 
 # constructor: undefined fitness
 tAddGty(pMGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,Δg,[0.0])
+	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,Δg,[0.0],[0.0])
 
 # type: genotype with multiplicative genotypic variations
 struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
 	G::Tag
 	δg::Tg
+	pT::Vector{Float64}
 	pF::Vector{Float64}
 end
 
 # constructor: undefined fitness
 tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0])
+	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0],[0.0])
 
 # type: genotype with alphabetical (not unbounded) genotypic variables
 struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
@@ -111,24 +113,26 @@ struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray}
 	G::Tag
 	pdg::Vector{Int32}
 	g::Tag
+	pT::Vector{Float64}
 	pF::Vector{Float64}
 end
 
 # constructor: undefined fitness
 tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,[length(g)],g,[0.0])
+	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,[length(g)],g,[0.0],[0.0])
 
 # type: genotype with continuous bounded genotypic variables
 struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
 	G::Tag
 	gbounds::Tag
+	pT::Vector{Float64}
 	pF::Vector{Float64}
 end
 
 # constructor: undefined fitness
 tCntGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,[0.0])
+	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,[0.0],[0.0])
 
 # type: genotype with continuous bounded genotypic variables and genetic assimilation mechanism
 struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
@@ -136,12 +140,13 @@ struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractAr
 	G::Tag
 	gbounds::Tag
 	aPmut::Vector{Float64}
+	pT::Vector{Float64}
 	pF::Vector{Float64}
 end
 
 # constructor: undefined fitness
 tCntGenAssGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,aPmut,[0.0])
+	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,aPmut,[0.0],[0.0])
 
 export tAddGty, tMltGty, tAlphaGty, tCntGty
 
@@ -244,8 +249,9 @@ end
 # type: evolutionary dynamics data
 struct tEvoData
 	Ngen::Int32
-	growthFactor::Array{Float64,1}
 	aveFitness::Array{Float64,1}
+	aveTeleonomy::Array{Float64,1}
+	growthFactor::Array{Float64,1}
 	mutationFactor::Array{Float64,1}
 
 	pAveFt::Vector{Float64}
@@ -258,13 +264,13 @@ end
 
 # initializer constructors
 tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(
-	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
+	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
 	[aveFt], aveFtinc, [1.0],
 	Array{Int32}(undef,0), Array{tLivingPop}(undef,0)
 )
 
 tEvoData(Ngen::Int32,aveFtinc::Float64) = tEvoData(
-	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
+	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
 	[0.0], aveFtinc, [1.0],
 	Array{Int32}(undef,0), Array{tLivingPop}(undef,0)
 )

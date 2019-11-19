@@ -11,7 +11,7 @@ const THREADRNG = let m = MersenneTwister(1)
             [m; accumulate(Future.randjump, fill(big(10)^20, nthreads()-1), init=m)]
         end;
 
-const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = .001, .99, 3.0, 8
+const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = 1.0, .99, 3.0, 8
 
 # initializer constructor for discrete time evolution. Same MetaGenotype for all.
 function initLivingPop( N::Int32,ety::Tety,env::Tenv,aMGty::Vector{Tmgty},aGty::Vector{Tgty} ) where {
@@ -345,6 +345,7 @@ function evolutionOneNiches!(pop::tLivingPop,evo::tEvoData)
 	aNichePop = [ initLivingPop( Int32(1), pop.ety, pop.env, pop.aMetaGty, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
 		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
 			push!(evo.aLivingPop,deepcopy(pop))
@@ -361,6 +362,7 @@ end
 function evolutionGKP!(pop::tLivingPop,evo::tEvoData;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
 		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
 			push!(evo.aLivingPop,deepcopy(pop))
@@ -379,6 +381,7 @@ end
 function evolutionGKPup!(pop::tLivingPop,evo::tEvoData,maxSize::Integer;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
 		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= evo.pMaxF[1] - 10^( -evo.pAveFt[1] )
 			push!(evo.aLivingPop,deepcopy(pop))
@@ -402,7 +405,7 @@ export evolutionOneNiches!, evolutionGKP!, evolutionGKPup!
 # =============
 
 function fitness!(env::atEnvironment,gty::atGenotype)
-	gty.pF[1] = fitness(env,gty)
+	gty.pF[1], gty.pT[1] = fitness(env,gty)
 end
 
 export fitness, fitness!
@@ -490,7 +493,7 @@ function metropolis!(istMGty::tIsingSigTransMGty,Jij::Array{<:Real,1},hi::Real,a
 end
 
 # function: fitness for ising signal transduction
-function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:atIsingMetaGty})::Float64
+function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:atIsingMetaGty})
 	fValues = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		d2::Float64 = 0.0
@@ -499,7 +502,7 @@ function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:at
 		end
 		fValues[t] = exp(-d2*env.selFactor)
 	end
-	return minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
+	return d2, minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
 end
 
 export metropolis, metropolis!
@@ -590,14 +593,16 @@ function response(gty::atSystemGty{<:atChannelMetaGty},Input::Vector{<:Real})
 	response(gty, W, Input)
 end
 
-function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSystemGty{<:atChannelMetaGty})::Float64
+function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSystemGty{<:atChannelMetaGty})
 	W = getWnrmd(gty)
 
 	d2::Float64 = 0.0
 	for io in env.IOidl
 		d2 += sum( (response(gty, W, io[1]) - io[2]).^2 )
 	end
-	return exp(-d2*env.selFactor)
+
+	return exp(-d2*env.selFactor), d2
+	# return 1.0/(d2 + env.selFactor), d2
 end
 
 export tDisChnMGty, response

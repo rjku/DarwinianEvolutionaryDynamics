@@ -24,8 +24,8 @@ import mEvoFunc, mUtils
 const NEPOCHS, LOGFASMPL = 1, 1/5
 
 # evolution and population constants
-const NGEN, NPOP = Int32(500), Int32(10^4)
-const REPFACTOR, PNTMUTFACTOR, NMUTMAX = 10.0, 0.07, Int32(15)
+const NGEN, NPOP = Int32(100000), Int32(1)
+const REPFACTOR, PNTMUTFACTOR, NMUTMAX = 10.0^5, 0.07, Int32(15)
 const SCALINGFACTOR = 1
 
 # metagenotypic constants
@@ -33,8 +33,8 @@ const SYSTEMSIZE, PVIABILITY, KOUT = Int32(6), 1.0, 100.0
 const GMIN, GMAX = -1.5, 1.5
 
 # environmental constants
-const SELSTRENGTH, NIO = 0.8, Int32(4);
-const HIGHFLOW, LOWFLOW = 1.0, 10.0^-4;
+const SELSTRENGTH, NIO = 30.0, Int32(4);
+const HF, LF = 1.0, 10.0^-4;
 
 # +
 # genotypic and metagenotypic types
@@ -65,10 +65,10 @@ push!(disChnEnv.IOidl, newIO);
 
 # environmental and evotypic types: DESIGNED BOOLEAN AND-GATE IO
 aIO = [
-    [ [HIGHFLOW, HIGHFLOW, HIGHFLOW, HIGHFLOW, HIGHFLOW, HIGHFLOW], [HIGHFLOW, HIGHFLOW, LOWFLOW, LOWFLOW, LOWFLOW, LOWFLOW] ],
-    [ [HIGHFLOW, HIGHFLOW, HIGHFLOW, HIGHFLOW, LOWFLOW, LOWFLOW], [LOWFLOW, LOWFLOW, LOWFLOW, LOWFLOW, HIGHFLOW, HIGHFLOW] ],
-    [ [LOWFLOW, LOWFLOW, HIGHFLOW, HIGHFLOW, HIGHFLOW, HIGHFLOW], [LOWFLOW, LOWFLOW, LOWFLOW, LOWFLOW, HIGHFLOW, HIGHFLOW] ],
-    [ [LOWFLOW, LOWFLOW, HIGHFLOW, HIGHFLOW, LOWFLOW, LOWFLOW], [LOWFLOW, LOWFLOW, LOWFLOW, LOWFLOW, HIGHFLOW, HIGHFLOW] ]
+    [ [HF, HF, HF, HF, HF, HF], [HF, HF, LF, LF, LF, LF] ],
+#     [ [HF, HF, HF, HF, LF, LF], [LF, LF, LF, LF, HF, HF] ],
+#     [ [HF, HF, LF, LF, HF, HF], [LF, LF, LF, LF, HF, HF] ],
+    [ [HF, HF, LF, LF, LF, LF], [LF, LF, LF, LF, HF, HF] ]
 ]
 for io in aIO io[2] = io[2] ./ sum(io[2]) end
 
@@ -90,13 +90,24 @@ aDisChnData = tEvoData[];
 aDisChnDataElite = tEvoData[];
 aDisChnDataNiche = tEvoData[];
 
+# simulated annealing with selection strength
 for i in 1:NEPOCHS
+    
+#     selStrength = 10.0^(-i%3+1)
+    disChnEnv = tCompEnv(aIO, SELSTRENGTH)
+    disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMGty[1].dG ],NMUTMAX);
+    
+    disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
+    disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
+#     disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
+    
     push!( aDisChnData, tEvoData(NGEN, LOGFASMPL) )
     push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL) )
-    push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
+#     push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
+    
     mEvoFunc.evolutionGKP!(disChnPop,aDisChnData[end],elite=false)
     mEvoFunc.evolutionGKP!(disChnPopElite,aDisChnDataElite[end],elite=true)
-    mEvoFunc.evolutionOneNiches!(disChnPopNiche,aDisChnDataNiche[end])
+#     mEvoFunc.evolutionOneNiches!(disChnPopNiche,aDisChnDataNiche[end])
 end
 
 subplots(3,1,figsize=(7.5,7.5))
@@ -108,10 +119,14 @@ subplot(312); title("Growth Factor");
     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnData]...) );
     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataElite]...) );
     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataNiche]...) );
-subplot(313); title("Mutation Factor");
-    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnData]...) );
-    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataElite]...) );
-    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataNiche]...) );
+subplot(313); title("Average Teleonomy");
+    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataNiche]...) );
+# subplot(313); title("Mutation Factor");
+#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnData]...) );
+#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataElite]...) );
+#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataNiche]...) );
 tight_layout();
 
 # +
@@ -325,6 +340,61 @@ fittestCrntPtrn = tCrntPattern(disChnEnv,disChnPop.aGty[iGty])
 
 aInputNodes = [ findall(x -> x == 1.0, disChnEnv.IOidl[i][1]) for i in eachindex(disChnEnv.IOidl) ]
 aOutputNodes = [ aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
+
+# +
+Nbatch, iPop, Nio = length(aDisChnData), 1, length(disChnEnv.IOidl)
+
+fmin = minimum([ gty.pF[1] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.pF[1] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
+
+# within batch
+# fittestFluxPattern = tFluxPattern(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[iGty])
+# fittestCrntPtrn = tCrntPattern(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[iGty])
+
+# @time mEvoFunc.getFluxStat!(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[1],fittestFluxPattern);
+# @time mEvoFunc.getCrntPtrn!(aDisChnData[Nbatch].aLivingPop[iPop].aGty[1],fittestFluxPattern,fittestCrntPtrn);
+
+# inputNodes = findall(x -> x == 1.0, disChnEnv.IOidl[io][1])
+# outputNodes = aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[io][2]);
+
+# last evolution step
+fittestFluxPattern = tFluxPattern(disChnEnv,disChnPopElite.aGty[1])
+fittestCrntPtrn = tCrntPattern(disChnEnv,disChnPopElite.aGty[1])
+
+@time mEvoFunc.getFluxStat!(disChnEnv,disChnPopElite.aGty[1],fittestFluxPattern);
+@time mEvoFunc.getCrntPtrn!(disChnPopElite.aGty[1],fittestFluxPattern,fittestCrntPtrn);
+
+aInputNodes = [ findall(x -> x == 1.0, disChnEnv.IOidl[i][1]) for i in eachindex(disChnEnv.IOidl) ]
+aOutputNodes = [ aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
+
+# +
+Nbatch, iPop, Nio = length(aDisChnData), 1, length(disChnEnv.IOidl)
+
+fmax = maximum([ gty.pF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
+iGty = findall( f -> f == fmax, [ gty.pF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
+
+fmin = minimum([ gty.pF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.pF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
+
+# within batch
+# fittestFluxPattern = tFluxPattern(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[iGty])
+# fittestCrntPtrn = tCrntPattern(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[iGty])
+
+# @time mEvoFunc.getFluxStat!(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[1],fittestFluxPattern);
+# @time mEvoFunc.getCrntPtrn!(aDisChnData[Nbatch].aLivingPop[iPop].aGty[1],fittestFluxPattern,fittestCrntPtrn);
+
+# inputNodes = findall(x -> x == 1.0, disChnEnv.IOidl[io][1])
+# outputNodes = aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[io][2]);
+
+# last evolution step
+fittestFluxPattern = tFluxPattern(disChnEnv,disChnPopNiche.aGty[iGty])
+fittestCrntPtrn = tCrntPattern(disChnEnv,disChnPopNiche.aGty[iGty])
+
+@time mEvoFunc.getFluxStat!(disChnEnv,disChnPopNiche.aGty[iGty],fittestFluxPattern);
+@time mEvoFunc.getCrntPtrn!(disChnPopNiche.aGty[iGty],fittestFluxPattern,fittestCrntPtrn);
+
+aInputNodes = [ findall(x -> x == 1.0, disChnEnv.IOidl[i][1]) for i in eachindex(disChnEnv.IOidl) ]
+aOutputNodes = [ aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
 # -
 
 for io in 1:Nio
@@ -342,4 +412,3 @@ for io in 1:Nio
     """
 end
 #plot(G,'Layout','force','EdgeLabel',G.Edges.Weight,'LineWidth',$(LWidths))
-
