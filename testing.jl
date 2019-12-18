@@ -69,3 +69,11 @@ for i in 1:NEPOCHS
 end
 
 plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataNiche]...) ); gcf()
+
+testVec = collect(-2:2)
+
+display( broadcast(e -> abs(e), testVec) )
+
+rand(filter(e->e!=3,testVec))
+
+display( [ 2^( L^2 - 2(L÷10+1)^2 ) for L in 2:10 ] )

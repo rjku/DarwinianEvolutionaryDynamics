@@ -122,23 +122,47 @@ function blindMutation!(gty::tMltGty,ety::atGtyMutEty)
 	end
 end
 
-function blindMutation!(gty::tAlphaGty,ety::atGtyMutEty)
-	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
-	CPmut = gty.pMetaGty[1].dG*gty.pdg[1]*Pmut
-	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
+function blindMutation!(gty::tAlphaGty,ety::atPntMutEty)
+	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.pF[1])
+	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^gty.pMetaGty[1].dG)		# probability of no mutation
+	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
-	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
-	if r <= CPmut
-		while CDFmut < r
-			CDFmut += Pmut
-			ig += 1
-		end
-		gty.G[ ig % gty.pMetaGty[1].dG + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
-		return Int32(1)
-	else
-		return Int32(0)
+	# determining the number of mutations
+	while CDFmut < rNmut && Nmut < length(ety.aSize2PDF[gty.pMetaGty[1].dG])
+		CDFmut += K*ety.aSize2PDF[gty.pMetaGty[1].dG][Nmut+=1]
 	end
+
+	# determining the mutating genes
+	aMut = Vector{Int32}(undef, Nmut)
+	for nmut in 1:Nmut
+		aMut[nmut] = rand(THREADRNG[threadid()], filter( e -> !(e in aMut), 1:gty.pMetaGty[1].dG ))
+	end
+
+	# determining the mutations
+	for i in aMut
+		gty.G[i] = rand(THREADRNG[threadid()], filter( e -> e != gty.G[i], gty.g ))
+	end
+
+	return Nmut
 end
+
+# function blindMutation!(gty::tAlphaGty,ety::atGtyMutEty)
+# 	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+# 	CPmut = gty.pMetaGty[1].dG*gty.pdg[1]*Pmut
+# 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
+#
+# 	CDFmut::Float64 = Pmut; ig::Int32 = 0; r::Float64 = rand(THREADRNG[threadid()])
+# 	if r <= CPmut
+# 		while CDFmut < r
+# 			CDFmut += Pmut
+# 			ig += 1
+# 		end
+# 		gty.G[ ig % gty.pMetaGty[1].dG + 1 ] = gty.g[ ig % gty.pdg[1] + 1 ]
+# 		return Int32(1)
+# 	else
+# 		return Int32(0)
+# 	end
+# end
 
 function blindMutation!(gty::tCntGty,ety::atPntMutEty)
 	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.pF[1])

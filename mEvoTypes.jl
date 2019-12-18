@@ -107,7 +107,7 @@ end
 tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
 	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0],[0.0])
 
-# type: genotype with alphabetical (not unbounded) genotypic variables
+# type: genotype with alphabetical/discrete (not unbounded) genotypic variables
 struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
 	G::Tag

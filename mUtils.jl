@@ -11,6 +11,8 @@ function myCov(X::AbstractArray,XAve::Number,Y::AbstractArray,YAve::Number)
 	return cov/(N-1)
 end
 
+# Y = broadcast(-, X, mean(X,2))
+
 function chopArray!(a::AbstractArray, δ::Float64=10^-12)
 	for (i, e) in enumerate(a)
 		if abs(e) < δ
@@ -37,6 +39,16 @@ function MPpdf(λ::Number,r::Number)
 	return [ (λ >= λm) && (λ <= λp) ? sqrt( (λp - λ)*(λ - λm) )/( 2pi*r*λ ) : 0.0, λm, λp ]
 end
 
-export myCov, chopArray!, MPpdf
+function cumulativeCount(θ::Real,a::AbstractArray)
+	N = 0
+	for e in a
+		if e >= θ
+			N += 1
+		end
+	end
+	return N/length(a)
+end
+
+export myCov, chopArray!, MPpdf, cumulativeCount
 
 end
