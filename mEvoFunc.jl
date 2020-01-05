@@ -218,6 +218,22 @@ function effSelectionOne!(pop::tLivingPop)
 	pop.pN[1] = pop.pN[2]
 end
 
+function selection!(aSelFncVals::AbstractVector,aiSelected::Vector{Int32})
+	Ftot = sum(aSelFncVals)
+
+	for j in eachindex(aiSelected)
+		i::Int32 = 1
+		CF = aSelFncVals[1]
+		r = Ftot*rand(THREADRNG[threadid()])
+
+		while CF < r
+			CF += aSelFncVals[i += 1]
+		end
+
+		aiSelected[j] = i
+	end
+end
+
 # function. effective selection: pruning of the population
 function effSelection!(pop::tLivingPop, elite::Bool)
 	popGtyRef::Array{atGenotype,1} = copy(pop.aGty)
@@ -478,7 +494,7 @@ export evoUpgrade!, upgradeGtyG!, setNextAch!
 # =============
 
 function fitness!(env::atEnvironment,gty::atGenotype)
-	gty.pF[1], gty.pT[1] = fitness(env,gty)
+	gty.pT[1], gty.pF[1] = fitness(env,gty)
 end
 
 export fitness, fitness!
@@ -676,7 +692,7 @@ function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSyst
 		d2 += sum( (response(gty, W, io[1]) - io[2]).^2 )
 	end
 
-	return exp(-d2*env.selFactor), d2
+	return d2, exp(-d2*env.selFactor)
 	# return 1.0/(d2 + env.selFactor), d2
 end
 
@@ -803,10 +819,17 @@ function getFluxStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtr
 		W[end,end] = -sum(W[1:end-1,end])
 
 		Λ(q::Vector) = det( Array(W .* ( 1.0 .+
-			sparse( gty.pMetaGty[1].V[1][1:gty.pMetaGty[1].Nvbl], gty.pMetaGty[1].V[2][1:gty.pMetaGty[1].Nvbl], map(e -> exp(e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1 ) .+
-			sparse( gty.pMetaGty[1].V[2][1:gty.pMetaGty[1].Nvbl], gty.pMetaGty[1].V[1][1:gty.pMetaGty[1].Nvbl], map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) .+
-			sparse( fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2), map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].dG+1:gty.pMetaGty[1].dG+gty.pMetaGty[1].L]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) .+
-			sparse( collect(1:gty.pMetaGty[1].L), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].dG+gty.pMetaGty[1].L+1:Nq]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) ) ) -
+			sparse( gty.pMetaGty[1].V[1][1:gty.pMetaGty[1].Nvbl], gty.pMetaGty[1].V[2][1:gty.pMetaGty[1].Nvbl],
+				map(e -> exp(e) - 1.0, q[1:gty.pMetaGty[1].Nvbl]), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1 ) .+
+			sparse( gty.pMetaGty[1].V[2][1:gty.pMetaGty[1].Nvbl], gty.pMetaGty[1].V[1][1:gty.pMetaGty[1].Nvbl],
+				map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].Nvbl+1:gty.pMetaGty[1].dG]), gty.pMetaGty[1].L2+1,
+				gty.pMetaGty[1].L2+1) .+
+			sparse( fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L), collect(gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2),
+				map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].dG+1:gty.pMetaGty[1].dG+gty.pMetaGty[1].L]),
+				gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1) .+
+			sparse( collect(1:gty.pMetaGty[1].L), fill(gty.pMetaGty[1].L2+1,gty.pMetaGty[1].L),
+				map(e -> exp(e) - 1.0, q[gty.pMetaGty[1].dG+gty.pMetaGty[1].L+1:Nq]), gty.pMetaGty[1].L2+1,
+				gty.pMetaGty[1].L2+1) ) ) -
 			q[end] .* I )
 		dΛ(q::Vector) = ForwardDiff.gradient(Λ,q)
 		ddΛ(q::Vector) = ForwardDiff.hessian(Λ,q)
@@ -897,6 +920,17 @@ function getRStat!(pop::tLivingPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChan
 end
 
 export getFluxStat!, response!, collectResponses!, getRStat!
+
+# *********************************
+# | ROBUSTNESS ANALYSIS FUNCTIONS \
+# *********************************
+
+function testGtyRbst(gty::atSystemGty,env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},fitness::Function)
+	# evaluate T and F
+	# mutate G
+	# evaluate T and F
+	# evaluate ΔT and ΔF
+end
 
 # *******************
 # I/O FUNCTIONS

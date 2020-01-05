@@ -38,7 +38,8 @@ abstract type atChannelMetaGty <: atMetaGenotype end
 
 abstract type atSystemGty{Tmgty} <: atGenotype end		# genotypes endowed with a pointer to a atMetaGenotype: pMetaGty
 
-export atPopulation, atEvotype, atGtyMutEty, atPntMutEty, atMetaGenotype, atIsingMetaGty, atChannelMetaGty, atGenotype, atPhenotype, atSystemGty
+export atPopulation, atEvotype, atGtyMutEty, atPntMutEty, atMetaGenotype, atIsingMetaGty, atChannelMetaGty
+export atGenotype, atPhenotype, atSystemGty
 
 
 # *******************
