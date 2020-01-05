@@ -2,29 +2,29 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,jl
+#     formats: ipynb,jl:light
 #     text_representation:
 #       extension: .jl
 #       format_name: light
-#       format_version: '1.4'
-#       jupytext_version: 1.2.4
+#       format_version: '1.5'
+#       jupytext_version: 1.3.0
 #   kernelspec:
-#     display_name: Julia (4 threads) 1.2.0
+#     display_name: Julia (2 threads) 1.3.1
 #     language: julia
-#     name: julia-(4-threads)-1.2
+#     name: julia-(2-threads)-1.3
 # ---
 
-using Revise, BenchmarkTools, PyPlot, MATLAB, Distances
+using Revise, BenchmarkTools, PyPlot, Distances
 using Statistics, LinearAlgebra
 using mEvoTypes
 import mEvoFunc, mUtils
 
 # +
 # data constants
-const NEPOCHS, LOGFASMPL = 1, 1/5
+const NEPOCHS, LOGFASMPL = 3, 1/5
 
 # evolution and population constants
-const NGEN, NPOP = Int32(500), Int32(2*10^3)
+const NGEN, NPOP, NPOPNICHE = Int32(10), Int32(10^3), Int32(10)
 const REPFACTOR, PNTMUTFACTOR, NMUTMAX = 10.0, 0.07, Int32(15)
 const SCALINGFACTOR = 1
 
@@ -49,13 +49,14 @@ aDisChnGty = [ tAlphaGty( [aDisChnMGty[1]], rand( [GMIN,GMAX], aDisChnMGty[1].dG
 # niched array of genotypes
 aDisChnGtyElite = deepcopy(aDisChnGty[1:NPOP]);
 aDisChnGtyNiche = deepcopy(aDisChnGty[1:NPOP]);
+aDisChnGtyOne = deepcopy(aDisChnGty[1:NPOP]);
 
 # metagenotypes and genotypes from file
 # aIsingMGty, aIsingGty, Npop = mEvoFunc.read_aIsingSigTransGty(isingDTMCprm,"test_#1")
 # -
 
 # environmental and evotypic types: RANDOM IO
-aIO = [ [ rand((LOWFLOW,HIGHFLOW),SYSTEMSIZE), rand((LOWFLOW,HIGHFLOW),SYSTEMSIZE) ] for i in 1:NIO ]
+aIO = [ [ rand((LF,HF),SYSTEMSIZE), rand((LF,HF),SYSTEMSIZE) ] for i in 1:NIO ]
 for io in aIO io[2] = io[2] ./ sum(io[2]) end
 
 # adding random input--outputs to computational environment
@@ -65,7 +66,7 @@ push!(disChnEnv.IOidl, newIO);
 
 # environmental and evotypic types: DESIGNED BOOLEAN AND-GATE IO
 aIO = [
-#     [ [HF, HF, HF, HF, HF, HF], [HF, HF, LF, LF, LF, LF] ],
+    [ [HF, HF, HF, HF, HF, HF], [HF, HF, LF, LF, LF, LF] ],
     [ [HF, HF, HF, HF, LF, LF], [LF, LF, LF, LF, HF, HF] ],
     [ [HF, HF, LF, LF, HF, HF], [LF, LF, LF, LF, HF, HF] ],
     [ [HF, HF, LF, LF, LF, LF], [LF, LF, LF, LF, HF, HF] ]
@@ -87,53 +88,69 @@ disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMGty[1].dG ],NMUTMAX);
 for io in disChnEnv.IOidl
     println( replace(e -> e == 1.0 ? 1 : 0, io[1])," → ", replace( x -> x >= 1/SYSTEMSIZE ? 1 : 0, io[2]) )
 end
+
+# +
+disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
+disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
+disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
+disChnPopOne = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
+
+aNichePop = [ mEvoFunc.initLivingPop( NPOPNICHE,disChnEty,disChnEnv,aDisChnMGty,[aDisChnGtyNiche[i] for j in 1:NPOPNICHE] ) for i in 1:NPOP ];
 # -
 
-# disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
-# disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
-disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
-
-# aDisChnData = tEvoData[];
-# aDisChnDataElite = tEvoData[];
+aDisChnData = tEvoData[];
+aDisChnDataElite = tEvoData[];
 aDisChnDataNiche = tEvoData[];
+aDisChnDataOne = tEvoData[];
 
+# +
 # simulated annealing with selection strength
 for i in 1:NEPOCHS
-    
+
 #     selStrength = 10.0^(-i%3+1)
 #     disChnEnv = tCompEnv(aIO, SELSTRENGTH)
 #     disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMGty[1].dG ],NMUTMAX);
-    
-#     disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
-#     disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
-    disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
-    
-#     push!( aDisChnData, tEvoData(NGEN, LOGFASMPL) )
-#     push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL) )
-    push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
-    
-#     mEvoFunc.evolutionGKP!(disChnPop,aDisChnData[end],elite=false)
-#     mEvoFunc.evolutionGKP!(disChnPopElite,aDisChnDataElite[end],elite=true)
-    mEvoFunc.evolutionOneNiches!(disChnPopNiche,aDisChnDataNiche[end])
-end
 
-subplots(3,1,figsize=(7.5,7.5))
-subplot(311); title("Average Fitness");
-#     plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataElite]...) );
+    disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
+    disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
+    disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
+    disChnPopOne = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyOne );
+    
+    aNichePop = [ mEvoFunc.initLivingPop( NPOPNICHE,disChnEty,disChnEnv,aDisChnMGty,aNichePop[i].aGty ) for i in 1:NPOP ]
+
+    push!( aDisChnData, tEvoData(NGEN, LOGFASMPL) )
+    push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL) )
+    push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
+    push!( aDisChnDataOne, tEvoData(NGEN, LOGFASMPL) )
+
+    mEvoFunc.gmsPopED!(disChnPop,aDisChnData[end],elite=false)
+    mEvoFunc.gmsPopED!(disChnPopElite,aDisChnDataElite[end],elite=true)
+    mEvoFunc.gmsNicED!(disChnPopNiche,aNichePop,aDisChnDataNiche[end],elite=true)
+    mEvoFunc.gmsNicOneED!(disChnPopOne,aDisChnDataOne[end])
+end
+# -
+
+subplots(4,1,figsize=(7.5,10))
+subplot(411); title("Average Fitness");
+    plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataElite]...) );
     plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataNiche]...) );
-subplot(312); title("Growth Factor");
-#     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataOne]...) );
+subplot(412); title("Growth Factor");
+    plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataElite]...) );
     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataNiche]...) );
-subplot(313); title("Average Teleonomy");
-#     plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataOne]...) );
+subplot(413); title("Average Teleonomy");
+    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataElite]...) );
     plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataNiche]...) );
-# subplot(313); title("Mutation Factor");
-#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataElite]...) );
-#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataNiche]...) );
+    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataOne]...) );
+subplot(414); title("Mutation Factor");
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataNiche]...) );
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataOne]...) );
 tight_layout();
 
 # +

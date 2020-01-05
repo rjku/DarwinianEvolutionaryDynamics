@@ -113,9 +113,9 @@ for i in 1:NEPOCHS
     push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL) )
 #     push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
     
-#     mEvoFunc.evolutionGKP!(disChnPop,aDisChnData[end],elite=false)
-    mEvoFunc.evolutionGKP!(disChnPopElite,aDisChnDataElite[end],elite=true)
-#     mEvoFunc.evolutionOneNiches!(disChnPopNiche,aDisChnDataNiche[end])
+#     mEvoFunc.gmsPopED!(disChnPop,aDisChnData[end],elite=false)
+    mEvoFunc.gmsPopED!(disChnPopElite,aDisChnDataElite[end],elite=true)
+#     mEvoFunc.gmsNicED!(disChnPopNiche,aDisChnDataNiche[end])
 end
 
 subplots(3,1,figsize=(7.5,7.5))

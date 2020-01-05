@@ -52,7 +52,7 @@ aIsingData = tEvoData[];
 
 for i in 1:NBATCHES
 	push!( aIsingData, tEvoData(NGEN, LOGFASMPL) )
-    mEvoFunc.evolutionGKPup!(isingPop,aIsingData[end],MAXSIZE,elite=true)
+    mEvoFunc.gmsPopEDup!(isingPop,aIsingData[end],MAXSIZE,elite=true)
 end
 
 subplots(3,1,figsize=(7.5,7.5))

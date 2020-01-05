@@ -2,16 +2,16 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,jl
+#     formats: ipynb,jl:light
 #     text_representation:
 #       extension: .jl
 #       format_name: light
-#       format_version: '1.4'
-#       jupytext_version: 1.2.4
+#       format_version: '1.5'
+#       jupytext_version: 1.3.0
 #   kernelspec:
-#     display_name: Julia 1.2.0
+#     display_name: Julia (2 threads) 1.3.0
 #     language: julia
-#     name: julia-1.2
+#     name: julia-(2-threads)-1.3
 # ---
 
 # # Testing
@@ -78,4 +78,26 @@ G[1]*conj(G[2])
 B = [ 1.0, im, -1.0, -im ]
 real([ B[i] * conj(B)[j] for i in 1:4, j in 1:4 ])
 
-# ### whatever
+# ## Plotting Grids
+
+using Revise, mUtils, PyPlot
+
+# +
+dict = Dict([1,0] => [0,-1], [0,1] => [1,0], [-1,0] => [0,1], [0,-1] => [-1,0])
+dx = .05
+Δx = .70
+
+V = [ [[1,0],[0,0]], [[0,1],[0,0]], [[0,0],[1,0]], [[1,1],[1,0]], [[1,1],[1,0]], [[1,0],[1,1]] ]
+
+subplots(1,1,figsize=(5,5))
+xticks(collect(-1:2))
+yticks(collect(-1:2))
+
+for v in V
+    arrow( (v[2] + 2(dx*(v[1] - v[2])) + dx*dict[v[1] - v[2]])..., (Δx*(v[1] - v[2]))..., head_length=2dx, width= .05*rand(), ec="tab:blue",fc="tab:blue")
+end
+# -
+
+[ range(N+1:N+3) for N in 0:3:10 ]
+
+

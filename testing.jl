@@ -64,8 +64,8 @@ aDisChnDataNiche = tEvoData[];
 for i in 1:NEPOCHS
 	# push!( aDisChnData, tEvoData(NGEN, LOGFASMPL) )
 	push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
-    # mEvoFunc.evolutionGKP!(disChnPop,aDisChnData[end],elite=false)
-    mEvoFunc.evolutionOneNiches!(disChnPopNiche,aDisChnDataNiche[end])
+    # mEvoFunc.gmsPopED!(disChnPop,aDisChnData[end],elite=false)
+    mEvoFunc.gmsNicED!(disChnPopNiche,aDisChnDataNiche[end])
 end
 
 plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataNiche]...) ); gcf()
@@ -77,3 +77,5 @@ display( broadcast(e -> abs(e), testVec) )
 rand(filter(e->e!=3,testVec))
 
 display( [ 2^( L^2 - 2(L÷10+1)^2 ) for L in 2:10 ] )
+
+display(rand(1:10,5))
