@@ -29,8 +29,8 @@ end
 
 # function. changing rep and mut -factors in tDscdtEty
 function set_tDscdtEtyFactors(ety::tDscdtEty,gty::tAlphaGty)
-	ety.pRepFactor[1] = ety.repRate/(gty.pdg[1]*gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
-	ety.pMutFactor[1] = ety.mutRate/(gty.pdg[1]*gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
+	ety.pRepFactor[1] = ety.repRate/(length(gty.g)*gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
+	ety.pMutFactor[1] = ety.mutRate/(length(gty.g)*gty.pMetaGty[1].dG*ety.mutRate+ety.ΔtOffset)
 end
 
 export initLivingPop
@@ -42,7 +42,7 @@ export initLivingPop
 
 # function. population replication optimized for populations of individuals (one niches)
 function replicationOne!(pop::tLivingPop)
-	Kr = pop.ety.pRepFactor[1]*pop.aGty[1].pF[1]							# effective replication factor
+	Kr = pop.ety.pRepFactor[1]*pop.aGty[1].aF[2]							# effective replication factor
 	ipKr = trunc(Int32,Kr)													# floored effective replication factor
 	G::Int32 = rand(THREADRNG[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr	# fluctuating growth coefficient
 
@@ -66,7 +66,7 @@ function replication!(pop::tLivingPop)
 	G = zeros(Int32,pop.pN[2])
 
 	@threads for i in 1:pop.pN[2]
-		Kr[threadid()] = pop.ety.pRepFactor[1]*pop.aGty[i].pF[1]
+		Kr[threadid()] = pop.ety.pRepFactor[1]*pop.aGty[i].aF[2]
 		ipKr[threadid()] = trunc(Int32,Kr[threadid()])
 		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
@@ -87,7 +87,7 @@ function replication!(pop::tLivingPop)
 end
 
 function blindMutation!(gty::tAddGty,ety::atGtyMutEty)
-	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].aF[2])
 	CPmut = 2gty.pMetaGty[1].dG*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
@@ -105,7 +105,7 @@ function blindMutation!(gty::tAddGty,ety::atGtyMutEty)
 end
 
 function blindMutation!(gty::tMltGty,ety::atGtyMutEty)
-	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].aF[2])
 	CPmut = 2gty.pMetaGty[1].dG*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
@@ -123,7 +123,7 @@ function blindMutation!(gty::tMltGty,ety::atGtyMutEty)
 end
 
 function blindMutation!(gty::tAlphaGty,ety::atPntMutEty)
-	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.pF[1])
+	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.aF[2])
 	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^gty.pMetaGty[1].dG)		# probability of no mutation
 	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
@@ -147,7 +147,7 @@ function blindMutation!(gty::tAlphaGty,ety::atPntMutEty)
 end
 
 # function blindMutation!(gty::tAlphaGty,ety::atGtyMutEty)
-# 	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].pF[1])
+# 	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].aF[2])
 # 	CPmut = gty.pMetaGty[1].dG*gty.pdg[1]*Pmut
 # 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 #
@@ -165,7 +165,7 @@ end
 # end
 
 function blindMutation!(gty::tCntGty,ety::atPntMutEty)
-	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.pF[1])
+	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.aF[2])
 	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^gty.pMetaGty[1].dG)		# probability of no mutation
 	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
@@ -209,19 +209,10 @@ function effMutation!(pop::tLivingPop)
 	return sum(aNmut)/pop.pN[2] 	# normalized number of mutations
 end
 
-# function. selection of the fittest within the niche population
-function effSelectionOne!(pop::tLivingPop)
-	fmax = maximum([ gty.pF[1] for gty in pop.aGty[1:pop.pN[1]] ])
-	iGty = findall( f -> f == fmax, [ gty.pF[1] for gty in pop.aGty[1:pop.pN[1]] ] )[1]
-
-	pop.aGty[1] = pop.aGty[iGty]
-	pop.pN[1] = pop.pN[2]
-end
-
 function selection!(aSelFncVals::AbstractVector,aiSelected::Vector{Int32})
 	Ftot = sum(aSelFncVals)
 
-	for j in eachindex(aiSelected)
+	@threads for j in eachindex(aiSelected)
 		i::Int32 = 1
 		CF = aSelFncVals[1]
 		r = Ftot*rand(THREADRNG[threadid()])
@@ -234,20 +225,37 @@ function selection!(aSelFncVals::AbstractVector,aiSelected::Vector{Int32})
 	end
 end
 
+# function. selection of the fittest within the niche population
+function effSelectionOne!(pop::tLivingPop,elite::Bool=false)
+	if elite
+		fmax = maximum([ gty.aF[3] for gty in pop.aGty[1:pop.pN[1]] ])
+		aiSelected = findall( f -> f == fmax, [ gty.aF[2] for gty in pop.aGty[1:pop.pN[1]] ] )
+	else
+		aiSelected = Int32[0]
+		selection!([ pop.aGty[i].aF[3] for i in 1:pop.pN[1] ], aiSelected)
+	end
+
+	pop.aGty[1] = pop.aGty[aiSelected[1]]
+
+	pop.pN[1] = pop.pN[2]
+end
+
 # function. effective selection: pruning of the population
-function effSelection!(pop::tLivingPop, elite::Bool)
+function effSelection!(pop::tLivingPop,elite::Bool=false)
 	popGtyRef::Array{atGenotype,1} = copy(pop.aGty)
 
 	if elite
 		# survival of the fittest
-		survivedGty = sortperm([pop.aGty[i].pF[1] for i in 1:pop.pN[1]],rev=true)
-		# sort!(pop.aGty, by= x -> x.pF[1], rev=true)
+		aiSelected = sortperm([ pop.aGty[i].aF[3] for i in 1:pop.pN[1] ],rev=true)
+		# sort!(pop.aGty, by= x -> x.aF[2], rev=true)
 	else
 		# selection with replacement of individuals
-		survivedGty = rand(THREADRNG[threadid()],1:pop.pN[1],pop.pN[2])
+		aiSelected = zeros(Int32,pop.pN[2])
+		selection!([ pop.aGty[i].aF[3] for i in 1:pop.pN[1] ], aiSelected)
+		# aiSelected = rand(THREADRNG[threadid()],1:pop.pN[1],pop.pN[2])
 	end
 	for i in 1:pop.pN[2]
-		pop.aGty[i] = popGtyRef[survivedGty[i]]
+		pop.aGty[i] = popGtyRef[aiSelected[i]]
 	end
 
 	# population size renormalization
@@ -256,7 +264,7 @@ end
 
 # function. condition for genotypic upgrade
 function upgradeCondition(gty::atSystemGty{<:atIsingMetaGty},maxSize::Integer)
-	return gty.pF[1] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < maxSize
+	return gty.aF[2] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < maxSize
 end
 
 # function. new genotypic variables choice. additive genotype case
@@ -383,33 +391,32 @@ function gmsNicEvoStep!(pop::tLivingPop,aNichePop::Vector{<:tLivingPop},elite::B
 	end
 
 	# sampling among the individuals in each niche to populate the population
-	aIsmpl = rand(1:aNichePop[1].pN[2],pop.pN[2])
-	pop.aGty[1:pop.pN[2]] .= [ aNichePop[i].aGty[aIsmpl[i]] for i in 1:pop.pN[2] ]
+	aiSmpl = rand(1:aNichePop[1].pN[2],pop.pN[2])
+	pop.aGty[1:pop.pN[2]] .= [ aNichePop[i].aGty[aiSmpl[i]] for i in 1:pop.pN[2] ]
 
 	return sum(aGf)/pop.pN[2], sum(aNmut)/pop.pN[2]
 end
 
 # function: individual evolutionary step: growth, mutation, and selection
 # returns: growth factor and number of mutations
-function gmsOneEvoStep!(pop::tLivingPop)
+function gmsOneEvoStep!(pop::tLivingPop,elite::Bool=false)
 	growth = replicationOne!(pop)
 	Nmut = effMutationOne!(pop)
-	effSelectionOne!(pop)
+	effSelectionOne!(pop,elite)
 
 	return growth, Nmut
 end
 
-function gmsNicOneEvoStep!(pop::tLivingPop,aNichePop::Vector{<:tLivingPop})
-	aGf = zeros(Float64,pop.pN[2])			# growth factor array
-	aNmut = zeros(Float64,pop.pN[2])		# N mutations array
+function gmsNicOneEvoStep!(aNichePop::Vector{<:tLivingPop},elite::Bool=false)
+	Npop = length(aNichePop)
+	aGf = zeros(Float64,Npop)			# growth factor array
+	aNmut = zeros(Float64,Npop)		# N mutations array
 
 	@threads for i in eachindex(aNichePop)
-		aGf[i], aNmut[i] = gmsOneEvoStep!(aNichePop[i])
+		aGf[i], aNmut[i] = gmsOneEvoStep!(aNichePop[i],elite)
 	end
 
-	pop.aGty[1:pop.pN[2]] .= [ aNichePop[i].aGty[1] for i in 1:pop.pN[2] ]
-
-	return sum(aGf)/pop.pN[2], sum(aNmut)/pop.pN[2]
+	return sum(aGf)/Npop, sum(aNmut)/Npop
 end
 
 # Fave + ( 1. - ( Fave % 1 ) ) % ( 1/3 ) + .2
@@ -418,8 +425,8 @@ end
 function gmsNicED!(pop::tLivingPop,aNichePop::Vector{<:tLivingPop},evo::tEvoData;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
-		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
-		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+		evo.aveFitness[gen] = mean( [pop.aGty[i].aF[2] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
 			push!(evo.aLivingPop,deepcopy(pop))		# record the population
 			push!(evo.aGen,gen)						# record the generation
@@ -432,29 +439,40 @@ function gmsNicED!(pop::tLivingPop,aNichePop::Vector{<:tLivingPop},evo::tEvoData
 end
 
 # function: genetic evolution with selection within individual niches
-function gmsNicOneED!(pop::tLivingPop,evo::tEvoData)
+function gmsNicOneED!(pop::tLivingPop,evo::tEvoData;elite::Bool=false)
+
 	aNichePop = [ initLivingPop( Int32(1), pop.ety, pop.env, pop.aMetaGty, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
-		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
-		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+		# aNichePop = [ initLivingPop( Int32(1), pop.ety, pop.env, pop.aMetaGty, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
+		aNichePop = [ initLivingPop( Int32(1), pop.ety, pop.env, pop.aMetaGty, deepcopy([aNichePop[i].aGty[1]]) ) for i in 1:pop.pN[2] ]
+
+		evo.aveTeleonomy[gen] = mean( [aNichePop[i].aGty[1].aF[1] for i in 1:pop.pN[2]] )
+		evo.aveFitness[gen] = mean( [aNichePop[i].aGty[1].aF[2] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
+			pop.aGty[1:pop.pN[2]] .= [ aNichePop[i].aGty[1] for i in 1:pop.pN[2] ]
 			push!(evo.aLivingPop,deepcopy(pop))
 			push!(evo.aGen,gen)
 			setNextAch!(evo,gen)
 			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.aveFitness[gen] )
 		end
 
-		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicOneEvoStep!(pop, aNichePop)
+		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicOneEvoStep!(aNichePop,elite)
+
+		# pop.aGty[1:pop.pN[2]] .= [ aNichePop[i].aGty[1] for i in 1:pop.pN[2] ]
+		# for i in 1:pop.pN[2]
+		# 	pop.aGty[i] = deepcopy(aNichePop[i].aGty[1])
+		# end
 	end
+
 end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
 function gmsPopED!(pop::tLivingPop,evo::tEvoData;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
-		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
-		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+		evo.aveFitness[gen] = mean( [pop.aGty[i].aF[2] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= 1.0 - 10^(- evo.pAveFt[1])
 			push!(evo.aLivingPop,deepcopy(pop))
 			push!(evo.aGen,gen)
@@ -470,8 +488,8 @@ end
 function gmsPopEDup!(pop::tLivingPop,evo::tEvoData,maxSize::Integer;elite::Bool=false)
 
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
-		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].pT[1] for i in 1:pop.pN[2]] )
-		evo.aveFitness[gen] = mean( [pop.aGty[i].pF[1] for i in 1:pop.pN[2]] )
+		evo.aveTeleonomy[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+		evo.aveFitness[gen] = mean( [pop.aGty[i].aF[2] for i in 1:pop.pN[2]] )
 		if evo.aveFitness[gen] >= evo.pMaxF[1] - 10^( -evo.pAveFt[1] )
 			push!(evo.aLivingPop,deepcopy(pop))
 			push!(evo.aGen,gen)
@@ -494,7 +512,7 @@ export evoUpgrade!, upgradeGtyG!, setNextAch!
 # =============
 
 function fitness!(env::atEnvironment,gty::atGenotype)
-	gty.pT[1], gty.pF[1] = fitness(env,gty)
+	gty.aF .= fitness(env,gty)
 end
 
 export fitness, fitness!
@@ -583,15 +601,15 @@ end
 
 # function: fitness for ising signal transduction
 function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:atIsingMetaGty})
-	fValues = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
+	ℓVals = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
-		d2::Float64 = 0.0
 		for io in env.IOidl
-			d2 += ( metropolis(gty.pMetaGty[1],broadcast(x->10.0^(x),gty.G),io[1]) - io[2] )^2
+			ℓVals[t] += ( metropolis(gty.pMetaGty[1],broadcast(x->10.0^(x),gty.G),io[1]) - io[2] )^2
 		end
-		fValues[t] = exp(-d2*env.selFactor)
 	end
-	return d2, minimum(fValues) + (gty.pMetaGty[1].halfL - BASALFITNESS)
+	d2 = maximum(ℓVals)
+	return [ d2, exp(-d2*env.aSelCoef[1]) + (gty.pMetaGty[1].halfL - BASALFITNESS),
+		exp(-d2*env.aSelCoef[2]) + (gty.pMetaGty[1].halfL - BASALFITNESS) ]
 end
 
 export metropolis, metropolis!
@@ -692,8 +710,7 @@ function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSyst
 		d2 += sum( (response(gty, W, io[1]) - io[2]).^2 )
 	end
 
-	return d2, exp(-d2*env.selFactor)
-	# return 1.0/(d2 + env.selFactor), d2
+	return [ d2, exp(-d2*env.aSelCoef[1]), exp(-d2*env.aSelCoef[2])	]	# loss, replication rate function, and selection function
 end
 
 export tDisChnMGty, response
@@ -962,7 +979,7 @@ function write_aGty(aGty::Vector{<:atGenotype},Npop::Int32,fileTag::String)
 			for x in aGty[i].G
 				print(f, x, "\t")
 			end
-			print(f, aGty[i].pF[1], "\n")
+			print(f, aGty[i].aF[2], "\n")
 		end
 	end
 end
@@ -975,7 +992,7 @@ function write_aGty(aGty::Vector{tAlphaGty},Npop::Int32,fileTag::String)
 			for x in aGty[i].G
 				print(f, x, "\t")
 			end
-			print(f, aGty[i].pF[1], "\n")
+			print(f, aGty[i].aF[2], "\n")
 		end
 	end
 	open( fileTag * "_a" * split(string(typeof(aGty[1])),"{")[1] * ".dat", "w" ) do f
@@ -1047,7 +1064,7 @@ export read_aIsingSigTransGty
 # *******************
 
 function fitness!(trivialEty::tTrivialEty,trivialEnv::tTrivialEnv,gty::atGenotype)
-	gty.pF[1]=1/(euclidean(gty.G,ones(Float64,gty.pMetaGty[1].dG))+FITNESSOFFSET)
+	gty.aF[2]=1/(euclidean(gty.G,ones(Float64,gty.pMetaGty[1].dG))+FITNESSOFFSET)
 end
 
 export fitness!

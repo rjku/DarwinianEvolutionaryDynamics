@@ -66,17 +66,15 @@ export tDTMCprm
 # type: computational environment
 struct tCompEnv{T<:Vector{<:AbstractVector}} <: atCompEnv
 	IOidl::T
-	selFactor::Float64
+	aSelCoef::Vector{Float64}
 end
-
-# ==============
-#   POPULATION
-# ==============
 
 # type: trivial environment
 struct tTrivialEnv <: atEnvironment end
 
-export tTrivialEnv
+# ==============
+#   POPULATION
+# ==============
 
 # -------------------
 #   GENOTYPES
@@ -87,26 +85,24 @@ struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:Abstr
 	pMetaGty::Tpmgty
 	G::Tag
 	Δg::Tg
-	pT::Vector{Float64}
-	pF::Vector{Float64}
+	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
 tAddGty(pMGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,Δg,[0.0],[0.0])
+	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,Δg,[0.0,0.0,0.0])
 
 # type: genotype with multiplicative genotypic variations
 struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
 	G::Tag
 	δg::Tg
-	pT::Vector{Float64}
-	pF::Vector{Float64}
+	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
 tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0],[0.0])
+	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0,0.0,0.0])
 
 # type: genotype with alphabetical/discrete (not unbounded) genotypic variables
 struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
@@ -114,26 +110,24 @@ struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray}
 	G::Tag
 	pdg::Vector{Int32}
 	g::Tag
-	pT::Vector{Float64}
-	pF::Vector{Float64}
+	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
 tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,[length(g)],g,[0.0],[0.0])
+	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,[length(g)],g,[0.0,0.0,0.0])
 
 # type: genotype with continuous bounded genotypic variables
 struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
 	G::Tag
 	gbounds::Tag
-	pT::Vector{Float64}
-	pF::Vector{Float64}
+	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
 tCntGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,[0.0],[0.0])
+	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,[0.0,0.0,0.0])
 
 # type: genotype with continuous bounded genotypic variables and genetic assimilation mechanism
 struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
@@ -141,13 +135,12 @@ struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractAr
 	G::Tag
 	gbounds::Tag
 	aPmut::Vector{Float64}
-	pT::Vector{Float64}
-	pF::Vector{Float64}
+	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
 tCntGenAssGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,aPmut,[0.0],[0.0])
+	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,aPmut,[0.0,0.0,0.0])
 
 export tAddGty, tMltGty, tAlphaGty, tCntGty
 
@@ -184,7 +177,7 @@ end
 tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutMax::Integer) = tPntMutEty([repFactor],[pntMutFactor],
 	Dict( dG => [ binomial(BigInt(dG),n)*(pntMutFactor^n)*(1-pntMutFactor)^(dG-n) for n in 1:NmutMax ] for dG in adG))
 
-export tCompEnv, tDscdtEty, tPntMutEty
+export tCompEnv, tTrivialEnv, tDscdtEty, tPntMutEty
 
 # -------------------
 #   METAGENOTYPES
