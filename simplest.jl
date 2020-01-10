@@ -40,7 +40,7 @@ function replication!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float6
 end
 
 # mutation function: ( genotype, fitness, dimension genotypic space ) → mutated genotype
-function effMutation!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float64,1}, pNpopGty::Array{Int64,1},
+function mutation!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float64,1}, pNpopGty::Array{Int64,1},
 		Dgty::Int64, repFactor::Float64, mutProb::Float64, R::Vector{MersenneTwister})
 	Δx::Float32 = DELTAX
 
@@ -63,7 +63,7 @@ function effMutation!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float6
 end
 
 # effective selection function: ( genotype populations, fitness, population size ) → selected population
-function effSelection!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float64,1}, pNpopGty::Array{Int64,1};
+function selection!(popGty::Array{Array{Float64,1},1}, fitPopGty::Array{Float64,1}, pNpopGty::Array{Int64,1};
 		ubermode::Bool=false)
 	growthFactor::Float64 = log(pNpopGty[1]/pNpopGty[2])
 	popGtyRef, fitPopGtyRef = copy(popGty), copy(fitPopGty)
@@ -120,8 +120,8 @@ function main()#::Int8
 
 	for gen in 1:NGEN
 		replication!(𝕏,𝔽,pNpop,κr,R)
-		effMutation!(𝕏,𝔽,pNpop,DGTY,κr,κm,R)
-		μ[gen] = effSelection!(𝕏,𝔽,pNpop,ubermode=true)
+		mutation!(𝕏,𝔽,pNpop,DGTY,κr,κm,R)
+		μ[gen] = selection!(𝕏,𝔽,pNpop,ubermode=true)
 		ϕ[gen] = sum(𝔽[1:pNpop[2]])/pNpop[2]
 	end
 

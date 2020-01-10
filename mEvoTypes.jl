@@ -26,7 +26,9 @@ abstract type atPopulation end
 
 abstract type atEvotype end
 abstract type atMetaGenotype end
-abstract type atGenotype end
+abstract type atGenotype end							# abstract genotypes are endowed with a genome vector G
+
+Base.length(gty::atGenotype) = length(gty.G)
 
 abstract type atPhenotype end
 
@@ -81,66 +83,69 @@ struct tTrivialEnv <: atEnvironment end
 # -------------------
 
 # type: genotype with additive genotypic variations
-struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
+struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,TG<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	G::Tag
+	G::TG
 	Δg::Tg
 	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
-tAddGty(pMGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,Δg,[0.0,0.0,0.0])
+tAddGty(pMetaGty::Vector{Tmgty},G::Vector{Tg},Δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
+	tAddGty{Tmgty,Vector{Tmgty},Tg}(pMetaGty,G,Δg,[0.0,0.0,0.0])
 
 # type: genotype with multiplicative genotypic variations
-struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,Tag<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
+struct tMltGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,TG<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	G::Tag
+	G::TG
 	δg::Tg
 	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
-tMltGty(pMGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
-	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMGty,G,δg,[0.0,0.0,0.0])
+tMltGty(pMetaGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenotype,Tg<:Number} =
+	tMltGty{Tmgty,Vector{Tmgty},Tg}(pMetaGty,G,δg,[0.0,0.0,0.0])
 
 # type: genotype with alphabetical/discrete (not unbounded) genotypic variables
-struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
+struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	G::Tag
-	pdg::Vector{Int32}
-	g::Tag
+	G::TG
+	g::TG
 	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
-tAlphaGty(pMGty::Vector{Tmgty},G::Tag,g::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tAlphaGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,[length(g)],g,[0.0,0.0,0.0])
+tAlphaGty(pMetaGty::Vector{Tmgty},G::TG,g::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
+	tAlphaGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,g,[0.0,0.0,0.0])
+
+Base.copy(gty::tAlphaGty) = tAlphaGty( gty.pMetaGty, deepcopy(gty.G), gty.g, deepcopy(gty.aF))
 
 # type: genotype with continuous bounded genotypic variables
-struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
+struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	G::Tag
-	gbounds::Tag
+	G::TG
+	gbounds::TG
 	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
-tCntGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,[0.0,0.0,0.0])
+tCntGty(pMetaGty::Vector{Tmgty},G::TG,gbounds::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
+	tCntGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,gbounds,[0.0,0.0,0.0])
+
+Base.copy(gty::tCntGty) = tCntGty( gty.pMetaGty, deepcopy(gty.G), gty.gbounds, deepcopy(gty.aF))
 
 # type: genotype with continuous bounded genotypic variables and genetic assimilation mechanism
-struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tag<:AbstractArray} <: atSystemGty{Tmgty}
+struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
-	G::Tag
-	gbounds::Tag
+	G::TG
+	gbounds::TG
 	aPmut::Vector{Float64}
 	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 
 # constructor: undefined fitness
-tCntGenAssGty(pMGty::Vector{Tmgty},G::Tag,gbounds::Tag,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,Tag<:AbstractArray} =
-	tCntGenAssGty{Tmgty,Vector{Tmgty},Tag}(pMGty,G,gbounds,aPmut,[0.0,0.0,0.0])
+tCntGenAssGty(pMetaGty::Vector{Tmgty},G::TG,gbounds::TG,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
+	tCntGenAssGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,gbounds,aPmut,[0.0,0.0,0.0])
 
 export tAddGty, tMltGty, tAlphaGty, tCntGty
 
@@ -163,14 +168,14 @@ tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::atGenotype) 
 
 # costructor. tDscdtEty
 tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::tAlphaGty) =
-	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(gty.pdg[1]*gty.pMetaGty[1].dG*mutRate+ΔtOffset)],
-	[mutRate/(gty.pdg[1]*gty.pMetaGty[1].dG*mutRate+ΔtOffset)] )
+	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(length(gty.g)*gty.pMetaGty[1].dG*mutRate+ΔtOffset)],
+	[mutRate/(length(gty.g)*gty.pMetaGty[1].dG*mutRate+ΔtOffset)] )
 
 # type: evotype
 struct tPntMutEty <: atPntMutEty
-	pRepFactor::Vector{Float64}				# <- trasnform these into Float64
+	pRepFactor::Vector{Float64}
 	pPntMutFactor::Vector{Float64}
-	aSize2PDF::Dict{Int32,Vector{Float64}}
+	aSize2PMF::Dict{Int32,Vector{Float64}}			# genotypic dimension => [ binomial PMF of mutation ]
 end
 
 # costructor. tPointMutationEty
@@ -184,7 +189,7 @@ export tCompEnv, tTrivialEnv, tDscdtEty, tPntMutEty
 # -------------------
 
 # type: ising signal transduction
-struct tIsingSigTransMGty{Tprm<:atMonteCarloPrm} <: atIsingMetaGty
+struct tIsingSigTransMetaGty{Tprm<:atMonteCarloPrm} <: atIsingMetaGty
 	L::Int32				# system size
 	dG::Int32				# interaction matrix number of entries
 
@@ -203,8 +208,8 @@ struct tIsingSigTransMGty{Tprm<:atMonteCarloPrm} <: atIsingMetaGty
 end
 
 # constructor: ising signal transduction
-tIsingSigTransMGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMonteCarloPrm} =
-	tIsingSigTransMGty{Tprm}(
+tIsingSigTransMetaGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMonteCarloPrm} =
+	tIsingSigTransMetaGty{Tprm}(
 	L, 2L^2, β, he, L^2, L÷2, L÷10+1, (L÷10+1)^2, β*he,
 	Int32[i%L+1 for i in 1:L],									# i -> i+1  with periodic boundary conditions
 	Int32[(L-2+i)%L+1 for i in 1:L],							# i -> i-1  with periodic boundary conditions
@@ -216,7 +221,7 @@ tIsingSigTransMGty(L::Int32, β::Real, he::Real, prms::Tprm) where {Tprm<:atMont
 )
 
 # type: disordered channel metagenotype <: atChannelMetaGty
-struct tDisChnMGty <: atChannelMetaGty
+struct tDisChnMetaGty <: atChannelMetaGty
 	L::Int32					# system size
 	L2::Int32;	L2mL::Int32
 	dG::Int32;	Nvbl::Int32		# genotype length and viable transitions
@@ -225,48 +230,47 @@ struct tDisChnMGty <: atChannelMetaGty
 	kout::Float64				# output rate constant
 end
 
-export tIsingSigTransMGty, tDisChnMGty
+export tIsingSigTransMetaGty, tDisChnMetaGty
 
 # -------------------
 #   POPULATION and DATA
 # -------------------
 
 # type: population
-struct tLivingPop{Tety<:atEvotype,Tenv<:atEnvironment,Tamgty<:Vector{<:atMetaGenotype},Tagty<:Vector{<:atGenotype}} <: atPopulation
+struct tEvoPop{Tety<:atEvotype,Tenv<:atEnvironment,Tamgty<:Vector{<:atMetaGenotype},TaG<:Vector{<:atGenotype}} <: atPopulation
 	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
 	ety::Tety
 	env::Tenv
 	aMetaGty::Tamgty
-	aGty::Tagty
+	aGty::TaG
 end
 
 # type: evolutionary dynamics data
 struct tEvoData
 	Ngen::Int32
-	aveFitness::Array{Float64,1}
-	aveTeleonomy::Array{Float64,1}
+	avePerformance::Array{Float64,1}
 	growthFactor::Array{Float64,1}
 	mutationFactor::Array{Float64,1}
 
 	pAveFt::Vector{Float64}
 	aveFtinc::Float64
-	pMaxF::Vector{Float64}
+	pMinF::Vector{Float64}
 
 	aGen::Vector{Int32}
-	aLivingPop::Vector{tLivingPop}
+	aEvoPop::Vector{tEvoPop}
 end
 
 # initializer constructors
-tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64) = tEvoData(
-	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
-	[aveFt], aveFtinc, [1.0],
-	Array{Int32}(undef,0), Array{tLivingPop}(undef,0)
+tEvoData(Ngen::Int32,aveFt::Float64,aveFtinc::Float64,minF::Float64) = tEvoData(
+	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
+	[aveFt], aveFtinc, [minF],
+	Array{Int32}(undef,0), Array{tEvoPop}(undef,0)
 )
 
-tEvoData(Ngen::Int32,aveFtinc::Float64) = tEvoData(
-	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
-	[0.0], aveFtinc, [1.0],
-	Array{Int32}(undef,0), Array{tLivingPop}(undef,0)
+tEvoData(Ngen::Int32,aveFtinc::Float64,minF::Float64) = tEvoData(
+	Ngen, Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
+	[0.0], aveFtinc, [minF],
+	Array{Int32}(undef,0), Array{tEvoPop}(undef,0)
 )
 
 # type: flux pattern
@@ -316,7 +320,7 @@ tStat(gty::atSystemGty) = tStat(
 
 tStat(Nv::Int32) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv), Array{Float64}(undef,Nv,Nv) )
 
-export tEvoData, tLivingPop, tFluxPattern, tCrntPattern, tStat
+export tEvoData, tEvoPop, tFluxPattern, tCrntPattern, tStat
 
 # *******************
 # TRIVIAL STUFF

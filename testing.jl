@@ -1,24 +1,31 @@
 
-struct ciccio
-	weight::Vector{Float64}
+struct ciccio{T<:AbstractArray}
+	weight::T
+end
+
+struct Pasticcio{T<:ciccio}
+	size::T
 end
 
 testVec = [1.0]
+
+ac = [ ciccio(testVec), ciccio([testVec[1]]), ciccio(deepcopy(testVec)) ]
+push!( ac, deepcopy(ac[1]) )
+
 testVec[1] += 1.0
 
-ac = [ ciccio(testVec), ciccio(deepcopy(testVec)) ]
-
 display(testVec)
+display( [ ac[i].weight for i in eachindex(ac) ])
 
-display(ac[1].weight)
-display(ac[2].weight)
+function feed_ciccio!(c)
+	c = ciccio([10])
+end
 
-# function feed_ciccio!(ac)
-# 	for i in 1:1
-# 		cp = ciccio([12])
-# 		ac[2] = cp
-# 	end
-# end
-#
-# feed_ciccio!(ac)
+feed_ciccio!(c)
 # display(ac[1].weight)
+
+p = Pasticcio( ac[1] )
+
+pcopy = deepcopy(p)
+
+display(( p.size.weight[1], pcopy.size.weight[1]))

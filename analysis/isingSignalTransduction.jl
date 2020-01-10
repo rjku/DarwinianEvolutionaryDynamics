@@ -43,10 +43,10 @@ isingEnv = tCompEnv( [[-1.0,-1.0], [1,1.0]], SELSTRENGTH )
 isingEty = tPntMutEty(REPFACTOR, PNTMUTFACTOR, [ 2L^2 for L in SYSTEMSIZE:2:MAXSIZE ], NMUTMAX);
 isingDTMCprm = tDTMCprm( NSAMPLINGS, NMCSPS, NTRIALS );
 
-aIsingMGty = [ tIsingSigTransMGty(SYSTEMSIZE,INVTEMPERATURE,EXTERNALFIELD,isingDTMCprm) ];
-aIsingGty = [ tCntGty( [aIsingMGty[1]], GMIN .+ rand(2SYSTEMSIZE^2) .* (GMAX - GMIN), [GMIN,GMAX] ) for i in 1:REPFACTOR*NPOP ];
+aIsingMetaGty = [ tIsingSigTransMetaGty(SYSTEMSIZE,INVTEMPERATURE,EXTERNALFIELD,isingDTMCprm) ];
+aIsingGty = [ tCntGty( [aIsingMetaGty[1]], GMIN .+ rand(2SYSTEMSIZE^2) .* (GMAX - GMIN), [GMIN,GMAX] ) for i in 1:REPFACTOR*NPOP ];
 
-@time isingPop = mEvoFunc.initLivingPop( NPOP,isingEty,isingEnv,aIsingMGty,aIsingGty );
+@time isingPop = mEvoFunc.initEvoPop( NPOP,isingEty,isingEnv,aIsingMetaGty,aIsingGty );
 
 aIsingData = tEvoData[];
 
@@ -68,34 +68,34 @@ iBatch, iPop, iIsing = 2, 2, 1
 const NSMPLSTAT, NMCSPSSTAT, NTRLSTAT = Int32(2+10^1), Int32(10^5), Int32(2)
 isingDTMCprmStat = tDTMCprm( NSMPLSTAT, NMCSPSSTAT, NTRLSTAT )
 
-GMat = Array{Float64}(undef, 2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, 2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L)
-mEvoFunc.showG!(aIsingData[iBatch].aLivingPop[iPop].aGty[1], GMat)
+GMat = Array{Float64}(undef, 2aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L, 2aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L)
+mEvoFunc.showG!(aIsingData[iBatch].aEvoPop[iPop].aGty[1], GMat)
 
-aSpinAve = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L) for i in isingEnv.IOidl ]
-aSpinCov = [ zeros(Float64, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2) for i in isingEnv.IOidl ]
-sCor = Array{Float64}(undef, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L2)
-@time mEvoFunc.getSpinStat!(isingEnv, aIsingData[iBatch].aLivingPop[iPop].aGty[1], aSpinAve, aSpinCov, sCor, isingDTMCprmStat)
+aSpinAve = [ zeros(Float64, aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L, aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L) for i in isingEnv.IOidl ]
+aSpinCov = [ zeros(Float64, aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L2) for i in isingEnv.IOidl ]
+sCor = Array{Float64}(undef, aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L2, aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L2)
+@time mEvoFunc.getSpinStat!(isingEnv, aIsingData[iBatch].aEvoPop[iPop].aGty[1], aSpinAve, aSpinCov, sCor, isingDTMCprmStat)
 
 my_cmap=get_cmap("YlOrRd"); my_cmap.set_under("Black"); my_cmap.set_over("White")
 
 subplot(131)
-imshow(GMat,cmap=my_cmap,vmin=aIsingData[iBatch].aLivingPop[iPop].aGty[1].gbounds[1],vmax=aIsingData[iBatch].aLivingPop[iPop].aGty[1].gbounds[2]);
+imshow(GMat,cmap=my_cmap,vmin=aIsingData[iBatch].aEvoPop[iPop].aGty[1].gbounds[1],vmax=aIsingData[iBatch].aEvoPop[iPop].aGty[1].gbounds[2]);
 title("Interaction Strength");
-xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:Int32(aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].halfL):aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
-yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L:2aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:Int32(aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].halfL):aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
+xticks(0:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L:2aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L-1, 1:Int32(aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].halfL):aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L);
+yticks(0:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L:2aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L-1, 1:Int32(aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].halfL):aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L);
 # colorbar();
 
 subplot(132)
 imshow(aSpinAve[1],cmap="Greys_r",vmin=-1,vmax=1);
 title("Input Field: High");
-xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
-yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
+xticks(0:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L);
+yticks(0:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L);
 
 subplot(133)
 imshow(aSpinAve[2],cmap="Greys_r",vmin=-1,vmax=1);
 title("Input Field: Low");
-xticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
-yticks(0:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aLivingPop[iPop].aGty[1].pMetaGty[1].L);
+xticks(0:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L);
+yticks(0:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L-1, 1:aIsingData[iBatch].aEvoPop[iPop].aGty[1].pMetaGty[1].L);
 
 tight_layout();
 # -

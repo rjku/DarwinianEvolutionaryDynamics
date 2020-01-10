@@ -9,9 +9,9 @@
 #       format_version: '1.5'
 #       jupytext_version: 1.3.0
 #   kernelspec:
-#     display_name: Julia (4 threads) 1.3.1
+#     display_name: Julia (2 threads) 1.3.1
 #     language: julia
-#     name: julia-(4-threads)-1.3
+#     name: julia-(2-threads)-1.3
 # ---
 
 using Revise, BenchmarkTools, PyPlot, Distances
@@ -21,10 +21,10 @@ import mEvoFunc, mUtils
 
 # +
 # data constants
-const NEPOCHS, LOGFASMPL = 3, 1/5
+const NEPOCHS, LOGFASMPL = 2, 1/5
 
 # evolution and population constants
-const NGEN, NPOP, NPOPNICHE = Int32(30), Int32(2*10^3), Int32(10)
+const NGEN, NPOP, NPOPNICHE = Int32(10), Int32(2*10^3), Int32(5)
 const REPFACTOR, PNTMUTFACTOR, NMUTMAX = 10.0, 0.07, Int32(15)
 const SCALINGFACTOR = 1
 
@@ -37,18 +37,13 @@ const REPSTRENGTH, SELSTRENGTH, NIO = 1.0, 100.0, Int32(4);
 const HF, LF = 1.0, 10.0^-4;
 
 # +
-# genotypic and metagenotypic types
-aDisChnMGty = [ mEvoFunc.tDisChnMGty( SYSTEMSIZE, PVIABILITY, KOUT ) ]
+# metagenotypic and genotypic types
+aDisChnMetaGty = [ mEvoFunc.tDisChnMetaGty( SYSTEMSIZE, PVIABILITY, KOUT ) ]
 
-# uniformly distributed initial genotypic variables
-aDisChnGtyOne = [ tAlphaGty( [aDisChnMGty[1]], rand( [GMIN,GMAX], aDisChnMGty[1].dG ), [GMIN,GMAX] ) for i in 1:REPFACTOR*NPOP ];
-
-# aDisChnGtyElite = deepcopy(aDisChnGty);
-# aDisChnGtyNiche = deepcopy(aDisChnGty[1:NPOP]);
-# aDisChnGtyOne = deepcopy(aDisChnGty[1:NPOP]);
-
-# metagenotypes and genotypes from file
-# aIsingMGty, aIsingGty, Npop = mEvoFunc.read_aIsingSigTransGty(isingDTMCprm,"test_#1")
+aDisChnGty = [ tAlphaGty( aDisChnMetaGty, rand( [GMIN,GMAX], aDisChnMetaGty[1].dG ), [GMIN,GMAX] ) for i in 1:trunc(Int32,REPFACTOR)*NPOP ];
+aDisChnGtyElite = [ tAlphaGty( aDisChnMetaGty, deepcopy(aDisChnGty[i].G), [GMIN,GMAX] ) for i in 1:trunc(Int32,REPFACTOR)*NPOP ];
+aDisChnGtyNiche = [ tAlphaGty( aDisChnMetaGty, deepcopy(aDisChnGty[i].G), [GMIN,GMAX] ) for i in 1:NPOP ];
+aDisChnGtyOne = [ tAlphaGty( aDisChnMetaGty, deepcopy(aDisChnGty[i].G), [GMIN,GMAX] ) for i in 1:NPOP ];
 # -
 
 # environmental and evotypic types: RANDOM IO
@@ -78,7 +73,7 @@ for io in aIO io[2] = io[2] ./ sum(io[2]) end
 
 # +
 disChnEnv = tCompEnv(aIO, [REPSTRENGTH, SELSTRENGTH])
-disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMGty[1].dG ],NMUTMAX);
+disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMetaGty[1].dG ],NMUTMAX);
 
 # print IOideal
 for io in disChnEnv.IOidl
@@ -86,20 +81,17 @@ for io in disChnEnv.IOidl
 end
 
 # +
-# disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
-# disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
-# disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
-disChnPopOne = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyOne );
+disChnPop = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGty );
+disChnPopElite = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyElite );
+disChnPopNiche = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyNiche );
+disChnPopOne = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyOne );
 
-    push!( aDisChnDataOne, tEvoData(NGEN, LOGFASMPL) )
-    mEvoFunc.gmsNicOneED!(disChnPopOne,aDisChnDataOne[end],elite=false)
-
-# aNichePop = [ mEvoFunc.initLivingPop( NPOPNICHE,disChnEty,disChnEnv,aDisChnMGty,[aDisChnGtyNiche[i] for j in 1:NPOPNICHE] ) for i in 1:NPOP ];
+aNichePop = [ mEvoFunc.tEvoPop( [NPOPNICHE,NPOPNICHE],disChnEty,disChnEnv,aDisChnMetaGty,[aDisChnGtyNiche[i] for j in 1:NPOPNICHE] ) for i in 1:NPOP ];
 # -
 
-# aDisChnData = tEvoData[];
-# aDisChnDataElite = tEvoData[];
-# aDisChnDataNiche = tEvoData[];
+aDisChnData = tEvoData[];
+aDisChnDataElite = tEvoData[];
+aDisChnDataNiche = tEvoData[];
 aDisChnDataOne = tEvoData[];
 
 # +
@@ -108,58 +100,42 @@ for i in 1:NEPOCHS
 
 #     selStrength = 10.0^(-i%3+1)
 #     disChnEnv = tCompEnv(aIO, SELSTRENGTH)
-#     disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMGty[1].dG ],NMUTMAX);
+#     disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMetaGty[1].dG ],NMUTMAX);
 
-#     disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
-#     disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
-#     disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
-    disChnPopOne = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyOne );
+    disChnPop = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGty );
+    disChnPopElite = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyElite );
+    disChnPopNiche = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyNiche );
+    disChnPopOne = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyOne );
     
-#     aNichePop = [ mEvoFunc.initLivingPop( NPOPNICHE,disChnEty,disChnEnv,aDisChnMGty,aNichePop[i].aGty ) for i in 1:NPOP ]
+    aNichePop = [ mEvoFunc.initEvoPop( NPOPNICHE,disChnEty,disChnEnv,aDisChnMetaGty,aNichePop[i].aGty ) for i in 1:NPOP ]
 
-#     push!( aDisChnData, tEvoData(NGEN, LOGFASMPL) )
-#     push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL) )
-#     push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
-    push!( aDisChnDataOne, tEvoData(NGEN, LOGFASMPL) )
+    push!( aDisChnData, tEvoData(NGEN, LOGFASMPL, 0.0) )
+    push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL, 0.0) )
+    push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL, 0.0) )
+    push!( aDisChnDataOne, tEvoData(NGEN, LOGFASMPL, 0.0) )
 
-#     mEvoFunc.gmsPopED!(disChnPop,aDisChnData[end],elite=false)
-#     mEvoFunc.gmsPopED!(disChnPopElite,aDisChnDataElite[end],elite=true)
-#     mEvoFunc.gmsNicED!(disChnPopNiche,aNichePop,aDisChnDataNiche[end],elite=false)
+    mEvoFunc.gmsPopED!(disChnPop,aDisChnData[end],elite=false)
+    mEvoFunc.gmsPopED!(disChnPopElite,aDisChnDataElite[end],elite=true)
+    mEvoFunc.gmsNicED!(disChnPopNiche,aNichePop,aDisChnDataNiche[end],elite=false)
     mEvoFunc.gmsNicOneED!(disChnPopOne,aDisChnDataOne[end],elite=false)
 end
-
-# +
-# disChnPop = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGty );
-# disChnPopElite = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyElite );
-# disChnPopNiche = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyNiche );
-disChnPopOne = mEvoFunc.initLivingPop( NPOP,disChnEty,disChnEnv,aDisChnMGty,aDisChnGtyOne );
-
-    push!( aDisChnDataOne, tEvoData(NGEN, LOGFASMPL) )
-    mEvoFunc.gmsNicOneED!(disChnPopOne,aDisChnDataOne[end],elite=false)
-
-# aNichePop = [ mEvoFunc.initLivingPop( NPOPNICHE,disChnEty,disChnEnv,aDisChnMGty,[aDisChnGtyNiche[i] for j in 1:NPOPNICHE] ) for i in 1:NPOP ];
 # -
 
-subplots(4,1,figsize=(7.5,10))
-subplot(411); title("Average Fitness");
-#     plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataElite]...) );
-#     plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataNiche]...) );
-    plot( vcat([dataBtc.aveFitness for dataBtc in aDisChnDataOne]...) );
-subplot(412); title("Growth Factor");
-#     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataElite]...) );
-#     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataNiche]...) );
+subplots(3,1,figsize=(7.5,7.5))
+subplot(311); title("Average Performance: Loss");
+    plot( vcat([dataBtc.avePerformance for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.avePerformance for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.avePerformance for dataBtc in aDisChnDataNiche]...) );
+    plot( vcat([dataBtc.avePerformance for dataBtc in aDisChnDataOne]...) );
+subplot(312); title("Growth Factor");
+    plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataNiche]...) );
     plot( vcat([dataBtc.growthFactor for dataBtc in aDisChnDataOne]...) );
-subplot(413); title("Average Teleonomy");
-#     plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataElite]...) );
-#     plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataNiche]...) );
-    plot( vcat([dataBtc.aveTeleonomy for dataBtc in aDisChnDataOne]...) );
-subplot(414); title("Mutation Factor");
-#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnData]...) );
-#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataElite]...) );
-#     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataNiche]...) );
+subplot(313); title("Mutation Factor");
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnData]...) );
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataElite]...) );
+    plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataNiche]...) );
     plot( vcat([dataBtc.mutationFactor for dataBtc in aDisChnDataOne]...) );
 tight_layout();
 
@@ -171,7 +147,7 @@ ldf = REPFACTOR*mean(aDisChnData[end].aveFitness[end-Nsmpls:end]) - mean(aDisChn
 
 # ## System Properties
 
-aDisChnMGty[1].dG, 4aDisChnMGty[1].L2mL
+aDisChnMetaGty[1].dG, 4aDisChnMetaGty[1].L2mL
 
 [ mEvoFunc.response(aDisChnGty[1], io[1]) for io in disChnEnv.IOidl ];
 
@@ -210,29 +186,29 @@ suptitle("Loss distribution", fontsize=16);
 # +
 Nbatch, iPop, iGty = length(aDisChnData), 1, 1
 
-r = aDisChnMGty[1].dG/NPOP
+r = aDisChnMetaGty[1].dG/NPOP
 
 Gstat = tStat(aDisChnGty[iPop])
-Rstat = tStat(aDisChnMGty[1].L2)
+Rstat = tStat(aDisChnMetaGty[1].L2)
 
 λval = [ λ for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ]
 MPval = [ mUtils.MPpdf(λ,r)[1] for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ];
 
-for iBatch in eachindex(aDisChnData), iPop in eachindex(aDisChnData[iBatch].aLivingPop)
+for iBatch in eachindex(aDisChnData), iPop in eachindex(aDisChnData[iBatch].aEvoPop)
     gen = aDisChnData[iBatch].aGen[iPop] + ( iBatch > 1 ? sum([ aDisChnData[jBatch].Ngen for jBatch in 1:iBatch-1]) : 0 )
-    mEvoFunc.getGStat!(aDisChnData[iBatch].aLivingPop[iPop], Gstat)
-    aResp = mEvoFunc.getRStat!(aDisChnData[iBatch].aLivingPop[iPop], Rstat)
+    mEvoFunc.getGStat!(aDisChnData[iBatch].aEvoPop[iPop], Gstat)
+    aResp = mEvoFunc.getRStat!(aDisChnData[iBatch].aEvoPop[iPop], Rstat)
     
     evGCor = eigvals( Symmetric(Gstat.cov) )
     evRCor = eigvals( Symmetric(Rstat.cov) )
 
     subplots(4,2,figsize=(7,14))
-    subplot(421); title("G values histogram");  hist(vcat( [aDisChnData[iBatch].aLivingPop[iPop].aGty[i].G for i in 1:aDisChnData[iBatch].aLivingPop[iPop].pN[2]]... ), aDisChnData[iBatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+    subplot(421); title("G values histogram");  hist(vcat( [aDisChnData[iBatch].aEvoPop[iPop].aGty[i].G for i in 1:aDisChnData[iBatch].aEvoPop[iPop].pN[2]]... ), aDisChnData[iBatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
     subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
     subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
     
 #     subplot(425); title("R values histogram"); hist( reshape(aResp,:,1), [10^i for i in -10:.5:0], log=true, density=true, rwidth=.9); xscale("log");
-    subplot(425); title("F values histogram"); hist( [aDisChnData[iBatch].aLivingPop[iPop].aGty[i].aF[1] for i in 1:aDisChnData[iBatch].aLivingPop[iPop].pN[2]], 20, log=false, density=true, rwidth=.9);
+    subplot(425); title("F values histogram"); hist( [aDisChnData[iBatch].aEvoPop[iPop].aGty[i].aF[1] for i in 1:aDisChnData[iBatch].aEvoPop[iPop].pN[2]], 20, log=false, density=true, rwidth=.9);
     subplot(426); title("R correlations"); imshow(Rstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar(); xticks(disChnPop.aMetaGty[1].L-1:disChnPop.aMetaGty[1].L:disChnPop.aMetaGty[1].L2,disChnPop.aMetaGty[1].L:disChnPop.aMetaGty[1].L:disChnPop.aMetaGty[1].L2); yticks(disChnPop.aMetaGty[1].L-1:disChnPop.aMetaGty[1].L:disChnPop.aMetaGty[1].L2,disChnPop.aMetaGty[1].L:disChnPop.aMetaGty[1].L:disChnPop.aMetaGty[1].L2);
     subplot(414); title("R eigenvalue distribution"); hist(evRCor,30,density=true,log=false,rwidth=.9);
     
@@ -248,7 +224,7 @@ evGCor = eigvals( Symmetric(Gstat.cov) )
 evRCor = eigvals( Symmetric(Rstat.cov) )
 
 subplots(4,2,figsize=(7,14))
-subplot(421); title("G values histogram");  hist(vcat( [disChnPop.aGty[i].G for i in 1:disChnPop.pN[2]]... ), aDisChnData[Nbatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+subplot(421); title("G values histogram");  hist(vcat( [disChnPop.aGty[i].G for i in 1:disChnPop.pN[2]]... ), aDisChnData[Nbatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
 subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
 subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
 
@@ -265,24 +241,24 @@ tight_layout(); subplots_adjust(top=0.9333);
 # +
 Nbatch, iPop, iGty = length(aDisChnDataElite), 1, 1
 
-r = aDisChnMGty[1].dG/NPOP
+r = aDisChnMetaGty[1].dG/NPOP
 
 Gstat = tStat(aDisChnGtyElite[iPop])
-Rstat = tStat(aDisChnMGty[1].L2)
+Rstat = tStat(aDisChnMetaGty[1].L2)
 
 λval = [ λ for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ]
 MPval = [ mUtils.MPpdf(λ,r)[1] for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ];
 
-for iBatch in eachindex(aDisChnDataElite), iPop in eachindex(aDisChnDataElite[iBatch].aLivingPop)
+for iBatch in eachindex(aDisChnDataElite), iPop in eachindex(aDisChnDataElite[iBatch].aEvoPop)
     gen = aDisChnDataElite[iBatch].aGen[iPop] + ( iBatch > 1 ? sum([ aDisChnData[jBatch].Ngen for jBatch in 1:iBatch-1]) : 0 )
-    mEvoFunc.getGStat!(aDisChnDataElite[iBatch].aLivingPop[iPop], Gstat)
-    aResp = mEvoFunc.getRStat!(aDisChnDataElite[iBatch].aLivingPop[iPop], Rstat)
+    mEvoFunc.getGStat!(aDisChnDataElite[iBatch].aEvoPop[iPop], Gstat)
+    aResp = mEvoFunc.getRStat!(aDisChnDataElite[iBatch].aEvoPop[iPop], Rstat)
     
     evGCor = eigvals( Symmetric(Gstat.cov) )
     evRCor = eigvals( Symmetric(Rstat.cov) )
 
     subplots(4,2,figsize=(7,14))
-    subplot(421); title("G values histogram");  hist(vcat( [aDisChnDataElite[iBatch].aLivingPop[iPop].aGty[i].G for i in 1:aDisChnDataElite[iBatch].aLivingPop[iPop].pN[2]]... ), aDisChnDataElite[iBatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+    subplot(421); title("G values histogram");  hist(vcat( [aDisChnDataElite[iBatch].aEvoPop[iPop].aGty[i].G for i in 1:aDisChnDataElite[iBatch].aEvoPop[iPop].pN[2]]... ), aDisChnDataElite[iBatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
     subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
     subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
     
@@ -302,7 +278,7 @@ evGCor = eigvals( Symmetric(Gstat.cov) )
 evRCor = eigvals( Symmetric(Rstat.cov) )
 
 subplots(4,2,figsize=(7,14))
-subplot(421); title("G values histogram");  hist(vcat( [disChnPopElite.aGty[i].G for i in 1:disChnPop.pN[2]]... ), aDisChnDataElite[Nbatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+subplot(421); title("G values histogram");  hist(vcat( [disChnPopElite.aGty[i].G for i in 1:disChnPop.pN[2]]... ), aDisChnDataElite[Nbatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
 subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
 subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
 
@@ -318,29 +294,29 @@ tight_layout(); subplots_adjust(top=0.9333);
 # +
 Nbatch, iPop, iGty = length(aDisChnDataNiche), 1, 1
 
-r = aDisChnMGty[1].dG/NPOP
+r = aDisChnMetaGty[1].dG/NPOP
 
 Gstat = tStat(aDisChnGtyNiche[iPop])
-Rstat = tStat(aDisChnMGty[1].L2)
+Rstat = tStat(aDisChnMetaGty[1].L2)
 
 λval = [ λ for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ]
 MPval = [ mUtils.MPpdf(λ,r)[1] for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ];
 
-for iBatch in eachindex(aDisChnDataNiche), iPop in eachindex(aDisChnDataNiche[iBatch].aLivingPop)
+for iBatch in eachindex(aDisChnDataNiche), iPop in eachindex(aDisChnDataNiche[iBatch].aEvoPop)
     gen = aDisChnDataNiche[iBatch].aGen[iPop] + ( iBatch > 1 ? sum([ aDisChnDataNiche[jBatch].Ngen for jBatch in 1:iBatch-1]) : 0 )
-    mEvoFunc.getGStat!(aDisChnDataNiche[iBatch].aLivingPop[iPop], Gstat)
-    aResp = mEvoFunc.getRStat!(aDisChnDataNiche[iBatch].aLivingPop[iPop], Rstat)
+    mEvoFunc.getGStat!(aDisChnDataNiche[iBatch].aEvoPop[iPop], Gstat)
+    aResp = mEvoFunc.getRStat!(aDisChnDataNiche[iBatch].aEvoPop[iPop], Rstat)
     
     evGCor = eigvals( Symmetric(Gstat.cov) )
     evRCor = eigvals( Symmetric(Rstat.cov) )
 
     subplots(4,2,figsize=(7,14))
-    subplot(421); title("G values histogram");  hist(vcat( [aDisChnDataNiche[iBatch].aLivingPop[iPop].aGty[i].G for i in 1:aDisChnDataNiche[iBatch].aLivingPop[iPop].pN[2]]... ), aDisChnDataNiche[iBatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+    subplot(421); title("G values histogram");  hist(vcat( [aDisChnDataNiche[iBatch].aEvoPop[iPop].aGty[i].G for i in 1:aDisChnDataNiche[iBatch].aEvoPop[iPop].pN[2]]... ), aDisChnDataNiche[iBatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
     subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
     subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
     
 #     subplot(425); title("R values histogram"); hist( reshape(aResp,:,1), [10^i for i in -10:.5:0], log=true, density=true, rwidth=.9); xscale("log");
-    subplot(425); title("F values histogram"); hist( [aDisChnDataNiche[iBatch].aLivingPop[iPop].aGty[i].aF[1] for i in 1:aDisChnDataNiche[iBatch].aLivingPop[iPop].pN[2]], 20, log=false, density=true, rwidth=.9);
+    subplot(425); title("F values histogram"); hist( [aDisChnDataNiche[iBatch].aEvoPop[iPop].aGty[i].aF[1] for i in 1:aDisChnDataNiche[iBatch].aEvoPop[iPop].pN[2]], 20, log=false, density=true, rwidth=.9);
     subplot(426); title("R correlations"); imshow(Rstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar(); xticks(disChnPopNiche.aMetaGty[1].L-1:disChnPopNiche.aMetaGty[1].L:disChnPopNiche.aMetaGty[1].L2,disChnPopNiche.aMetaGty[1].L:disChnPopNiche.aMetaGty[1].L:disChnPopNiche.aMetaGty[1].L2); yticks(disChnPopNiche.aMetaGty[1].L-1:disChnPopNiche.aMetaGty[1].L:disChnPopNiche.aMetaGty[1].L2,disChnPopNiche.aMetaGty[1].L:disChnPopNiche.aMetaGty[1].L:disChnPopNiche.aMetaGty[1].L2);
     subplot(414); title("R eigenvalue distribution"); hist(evRCor,30,density=true,log=false,rwidth=.9);
     
@@ -356,7 +332,7 @@ evGCor = eigvals( Symmetric(Gstat.cov) )
 evRCor = eigvals( Symmetric(Rstat.cov) )
 
 subplots(4,2,figsize=(7,14))
-subplot(421); title("G values histogram");  hist(vcat( [disChnPopNiche.aGty[i].G for i in 1:disChnPopNiche.pN[2]]... ), aDisChnDataNiche[Nbatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+subplot(421); title("G values histogram");  hist(vcat( [disChnPopNiche.aGty[i].G for i in 1:disChnPopNiche.pN[2]]... ), aDisChnDataNiche[Nbatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
 subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
 subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
 
@@ -373,29 +349,29 @@ tight_layout(); subplots_adjust(top=0.9333);
 # +
 Nbatch, iPop, iGty = length(aDisChnDataOne), 1, 1
 
-r = aDisChnMGty[1].dG/NPOP
+r = aDisChnMetaGty[1].dG/NPOP
 
 Gstat = tStat(aDisChnGtyOne[iPop])
-Rstat = tStat(aDisChnMGty[1].L2)
+Rstat = tStat(aDisChnMetaGty[1].L2)
 
 λval = [ λ for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ]
 MPval = [ mUtils.MPpdf(λ,r)[1] for λ in mUtils.MPpdf(0,r)[2]:0.01:mUtils.MPpdf(0,r)[3] ];
 
-for iBatch in eachindex(aDisChnDataOne), iPop in eachindex(aDisChnDataOne[iBatch].aLivingPop)
+for iBatch in eachindex(aDisChnDataOne), iPop in eachindex(aDisChnDataOne[iBatch].aEvoPop)
     gen = aDisChnDataOne[iBatch].aGen[iPop] + ( iBatch > 1 ? sum([ aDisChnDataOne[jBatch].Ngen for jBatch in 1:iBatch-1]) : 0 )
-    mEvoFunc.getGStat!(aDisChnDataOne[iBatch].aLivingPop[iPop], Gstat)
-    aResp = mEvoFunc.getRStat!(aDisChnDataOne[iBatch].aLivingPop[iPop], Rstat)
+    mEvoFunc.getGStat!(aDisChnDataOne[iBatch].aEvoPop[iPop], Gstat)
+    aResp = mEvoFunc.getRStat!(aDisChnDataOne[iBatch].aEvoPop[iPop], Rstat)
     
     evGCor = eigvals( Symmetric(Gstat.cov) )
     evRCor = eigvals( Symmetric(Rstat.cov) )
 
     subplots(4,2,figsize=(7,14))
-    subplot(421); title("G values histogram");  hist(vcat( [aDisChnDataOne[iBatch].aLivingPop[iPop].aGty[i].G for i in 1:aDisChnDataOne[iBatch].aLivingPop[iPop].pN[2]]... ), aDisChnDataOne[iBatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+    subplot(421); title("G values histogram");  hist(vcat( [aDisChnDataOne[iBatch].aEvoPop[iPop].aGty[i].G for i in 1:aDisChnDataOne[iBatch].aEvoPop[iPop].pN[2]]... ), aDisChnDataOne[iBatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
     subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
     subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
     
 #     subplot(425); title("R values histogram"); hist( reshape(aResp,:,1), [10^i for i in -10:.5:0], log=true, density=true, rwidth=.9); xscale("log");
-    subplot(425); title("F values histogram"); hist( [aDisChnDataOne[iBatch].aLivingPop[iPop].aGty[i].aF[1] for i in 1:aDisChnDataOne[iBatch].aLivingPop[iPop].pN[2]], 20, log=false, density=true, rwidth=.9);
+    subplot(425); title("F values histogram"); hist( [aDisChnDataOne[iBatch].aEvoPop[iPop].aGty[i].aF[1] for i in 1:aDisChnDataOne[iBatch].aEvoPop[iPop].pN[2]], 20, log=false, density=true, rwidth=.9);
     subplot(426); title("R correlations"); imshow(Rstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar(); xticks(disChnPopOne.aMetaGty[1].L-1:disChnPopOne.aMetaGty[1].L:disChnPopOne.aMetaGty[1].L2,disChnPopOne.aMetaGty[1].L:disChnPopOne.aMetaGty[1].L:disChnPopOne.aMetaGty[1].L2); yticks(disChnPopOne.aMetaGty[1].L-1:disChnPopOne.aMetaGty[1].L:disChnPopOne.aMetaGty[1].L2,disChnPopOne.aMetaGty[1].L:disChnPopOne.aMetaGty[1].L:disChnPopOne.aMetaGty[1].L2);
     subplot(414); title("R eigenvalue distribution"); hist(evRCor,30,density=true,log=false,rwidth=.9);
     
@@ -411,7 +387,7 @@ evGCor = eigvals( Symmetric(Gstat.cov) )
 evRCor = eigvals( Symmetric(Rstat.cov) )
 
 subplots(4,2,figsize=(7,14))
-subplot(421); title("G values histogram");  hist(vcat( [disChnPopOne.aGty[i].G for i in 1:disChnPopOne.pN[2]]... ), aDisChnDataOne[Nbatch].aLivingPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
+subplot(421); title("G values histogram");  hist(vcat( [disChnPopOne.aGty[i].G for i in 1:disChnPopOne.pN[2]]... ), aDisChnDataOne[Nbatch].aEvoPop[iPop].aGty[1].pdg[1], density=true,rwidth=.9);
 subplot(422); title("G correlations"); imshow(Gstat.cor,cmap="viridis",vmin=-1,vmax=1); colorbar();
 subplot(412); title("G eigenvalue distribution"); hist(evGCor,30,density=true,log=false,rwidth=.9); plot(λval,MPval)
 
@@ -436,7 +412,7 @@ plot(θvec,cum); xscale("log"); xlabel("θ"); yscale("log"); ylabel("count");
 # ## Response Analysis
 
 aInputNodes = [ findall(x -> x == 1.0, disChnEnv.IOidl[i][1]) for i in eachindex(disChnEnv.IOidl) ]
-aOutputNodes = [ aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
+aOutputNodes = [ aDisChnMetaGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
 
 # +
 # GKP Dynamics Statistics: last evolution step
@@ -501,14 +477,14 @@ end
 # within batch
 # Nbatch, iPop, Nio = length(aDisChnData), 1, length(disChnEnv.IOidl)
 
-# fittestFluxPattern = tFluxPattern(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[iGty])
-# fittestCrntPtrn = tCrntPattern(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[iGty])
+# fittestFluxPattern = tFluxPattern(disChnEnv,aDisChnData[Nbatch].aEvoPop[iPop].aGty[iGty])
+# fittestCrntPtrn = tCrntPattern(disChnEnv,aDisChnData[Nbatch].aEvoPop[iPop].aGty[iGty])
 
-# @time mEvoFunc.getFluxStat!(disChnEnv,aDisChnData[Nbatch].aLivingPop[iPop].aGty[1],fittestFluxPattern);
-# @time mEvoFunc.getCrntPtrn!(aDisChnData[Nbatch].aLivingPop[iPop].aGty[1],fittestFluxPattern,fittestCrntPtrn);
+# @time mEvoFunc.getFluxStat!(disChnEnv,aDisChnData[Nbatch].aEvoPop[iPop].aGty[1],fittestFluxPattern);
+# @time mEvoFunc.getCrntPtrn!(aDisChnData[Nbatch].aEvoPop[iPop].aGty[1],fittestFluxPattern,fittestCrntPtrn);
 
 # inputNodes = findall(x -> x == 1.0, disChnEnv.IOidl[io][1])
-# outputNodes = aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[io][2]);
+# outputNodes = aDisChnMetaGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[io][2]);
 
 # +
 # Elite Statistics: last evolution step
@@ -598,7 +574,7 @@ end
 #plot(G,'Layout','force','EdgeLabel',G.Edges.Weight,'LineWidth',$(LWidths))
 
 aInputNodes = [ findall(x -> x == 1.0, disChnEnv.IOidl[i][1]) for i in eachindex(disChnEnv.IOidl) ]
-aOutputNodes = [ aDisChnMGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
+aOutputNodes = [ aDisChnMetaGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disChnEnv.IOidl[i][2]) for i in eachindex(disChnEnv.IOidl) ];;
 
 mat"""
     figure('Name','shitty')
@@ -651,4 +627,4 @@ cumEnergy( p ) = sum(aEv[1:p])/sum(aEv);
 plot([cumEnergy(p) for p in 1:length(aEv)]);
 
 Δi = 0.001
-plot( collect(-1:Δi:1), [ mEvoFunc.fitness(disChnEnv,tAlphaGty( [aDisChnMGty[1]], t*F.S[3]*F.Vt[3,:], [GMIN,GMAX] ))[1] for t in -1:Δi:1] );
+plot( collect(-1:Δi:1), [ mEvoFunc.fitness(disChnEnv,tAlphaGty( [aDisChnMetaGty[1]], t*F.S[3]*F.Vt[3,:], [GMIN,GMAX] ))[1] for t in -1:Δi:1] );
