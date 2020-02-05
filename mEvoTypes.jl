@@ -118,7 +118,20 @@ end
 tAlphaGty(pMetaGty::Vector{Tmgty},G::TG,g::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
 	tAlphaGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,g,[0.0,0.0,0.0])
 
-Base.copy(gty::tAlphaGty) = tAlphaGty( gty.pMetaGty, deepcopy(gty.G), gty.g, deepcopy(gty.aF))
+Base.copy(gty::tAlphaGty) = tAlphaGty( gty.pMetaGty, deepcopy(gty.G), gty.g, deepcopy(gty.aF) )
+
+# type: genotype with binary (not unbounded) genotypic variables
+struct tBinaryGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
+	pMetaGty::Tpmgty
+	G::TG
+	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
+end
+
+# constructor: undefined fitness
+tBinaryGty(pMetaGty::Vector{Tmgty},G::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
+	tBinaryGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,[0.0,0.0,0.0])
+
+Base.copy(gty::tBinaryGty) = tBinaryGty( gty.pMetaGty, deepcopy(gty.G), deepcopy(gty.aF) )
 
 # type: genotype with continuous bounded genotypic variables
 struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
@@ -146,6 +159,11 @@ end
 # constructor: undefined fitness
 tCntGenAssGty(pMetaGty::Vector{Tmgty},G::TG,gbounds::TG,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
 	tCntGenAssGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,gbounds,aPmut,[0.0,0.0,0.0])
+
+function Base.copy!(gtyDst::Tgty,gtySrc::Tgty) where {Tgty<:atGenotype}
+	gtyDst.G .= gtySrc.G
+	gtyDst.aF .= gtySrc.aF
+end
 
 export tAddGty, tMltGty, tAlphaGty, tCntGty
 

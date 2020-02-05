@@ -7,11 +7,11 @@
 #       extension: .jl
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.0
+#       jupytext_version: 1.3.2
 #   kernelspec:
-#     display_name: Julia (2 threads) 1.3.0
+#     display_name: Julia 1.3.1
 #     language: julia
-#     name: julia-(2-threads)-1.3
+#     name: julia-1.3
 # ---
 
 # # Testing
@@ -78,6 +78,13 @@ G[1]*conj(G[2])
 B = [ 1.0, im, -1.0, -im ]
 real([ B[i] * conj(B)[j] for i in 1:4, j in 1:4 ])
 
+# ## Plotting Box Plots
+
+using PyPlot
+data = rand(100);
+subpots(1,1,figsize=(5,5))
+boxplot([data,data], positions=[.5, 2]);
+
 # ## Plotting Grids
 
 using Revise, mUtils, PyPlot
@@ -99,5 +106,3 @@ end
 # -
 
 [ range(N+1:N+3) for N in 0:3:10 ]
-
-

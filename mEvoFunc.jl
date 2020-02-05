@@ -1,5 +1,6 @@
 
 module mEvoFunc
+
 using Base.Threads, SparseArrays
 using LinearAlgebra, Random, Statistics, Distributions, ForwardDiff, Distances
 using mEvoTypes, mUtils
@@ -16,7 +17,7 @@ const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = 1.0, .99, 3.0, 8
 function initEvoPop( N::Int32,ety::Tety,env::Tenv,aMetaGty::Vector{Tmgty},aGty::Vector{TG} ) where {
 		Tety<:atEvotype,Tenv<:atEnvironment,Tmgty<:atMetaGenotype,TG<:atGenotype }
 	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N > length(aGty)"))
-	@threads for i in 1:N fitness!(env,aGty[i]) end
+	@threads for i in 1:N fitness!(aGty[i],env) end
 	return tEvoPop{Tety,Tenv,Vector{Tmgty},Vector{TG}}( Int32[N,N,length(aGty)],ety,env,aMetaGty,aGty )
 end
 
@@ -148,7 +149,7 @@ function mutationOne!(pop::tEvoPop)
 	for i in 1:pop.pN[1]
 		aNmut[i] = mutation!(pop.aGty[i],pop.ety)
 		if aNmut[i] > 0
-			fitness!(pop.env,pop.aGty[i])
+			fitness!(pop.aGty[i],pop.env)
 		end
 	end
 	return sum(aNmut)
@@ -160,7 +161,7 @@ function mutation!(pop::tEvoPop)
 	@threads for i in 1:pop.pN[1]
 		aNmut[i] = mutation!(pop.aGty[i],pop.ety)
 		if aNmut[i] > 0
-			fitness!(pop.env,pop.aGty[i])
+			fitness!(pop.aGty[i],pop.env)
 		end
 	end
 	return sum(aNmut)/pop.pN[2] 	# normalized number of mutations
@@ -181,7 +182,7 @@ end
 function selectionOne!(pop::tEvoPop,elite::Bool=false)
 	if elite
 		fmax = maximum([ gty.aF[3] for gty in pop.aGty[1:pop.pN[1]] ])
-		iSelected = findall( f -> f == fmax, [ gty.aF[2] for gty in pop.aGty[1:pop.pN[1]] ] )[1]
+		iSelected = findfirst( f -> f == fmax, [ gty.aF[2] for gty in pop.aGty[1:pop.pN[1]] ] )
 	else
 		iSelected = selectionOne([ pop.aGty[i].aF[3] for i in 1:pop.pN[1] ])
 	end
@@ -323,7 +324,7 @@ function evoUpgrade!(pop::tEvoPop,evo::tEvoData,maxSize::Integer)
 		if upgradeCondition(pop.aGty[i],maxSize)
 			upgradeGtyG!(pop.aGty[i])
 			upgradeMetaGty!(pop.ety,pop.aMetaGty,pop.aGty[i],evo)
-			fitness!(pop.env,pop.aGty[i])
+			fitness!(pop.aGty[i],pop.env)
 		end
 	end
 end
@@ -382,11 +383,34 @@ function gmsNicOneEvoStep!(aNicPop::Vector{<:tEvoPop},elite::Bool=false)
 	return sum(aGf)/length(aNicPop), sum(aNmut)/length(aNicPop)
 end
 
+function metropolisEvoStep!(gty::atGenotype,env::atEnvironment)
+	Nmut = 0
+	gtyClone = copy(gty)
+	for i in 1:length(gty)
+		mutation!(gtyClone,rand(THREADRNG[threadid()],1:length(gty)))
+		fitness!(gtyClone,env)
+		if rand(THREADRNG[threadid()]) < min(1,gtyClone.aF[3]/gty.aF[3])
+			copy!(gty,gtyClone)
+			Nmut += 1
+		else
+			copy!(gtyClone,gty)
+		end
+	end
+	return Nmut
+end
+
+function metropolisEvoStep!(pop::tEvoPop)
+	aNmut = Vector{Int32}(undef,pop.pN[2])
+	@threads for i in 1:pop.pN[2]
+		aNmut[i] = metropolisEvoStep!(pop.aGty[i],pop.env)
+	end
+	return sum(aNmut)/pop.pN[2]
+end
+
 # Fave + ( 1. - ( Fave % 1 ) ) % ( 1/3 ) + .2
 
 # function: genetic evolution with selection within population niches
 function gmsNicED!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},evo::tEvoData;elite::Bool=false)
-
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
@@ -395,7 +419,6 @@ function gmsNicED!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},evo::tEvoData;elite
 			setNextAch!(evo,gen)
 			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
-
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicEvoStep!(pop, aNichePop, elite)
 	end
 end
@@ -413,7 +436,6 @@ function gmsNicOneED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
 			setNextAch!(evo,gen)
 			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
-
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicOneEvoStep!(aNicPop,elite)
 	end
 
@@ -424,7 +446,6 @@ end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
 function gmsPopED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
-
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
@@ -436,11 +457,12 @@ function gmsPopED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
 
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop,elite)
 	end
+
+	return pop, evo
 end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
 function gmsPopEDup!(pop::tEvoPop,evo::tEvoData,maxSize::Integer;elite::Bool=false)
-
 	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^( -evo.pAveFt[1] )
@@ -455,6 +477,19 @@ function gmsPopEDup!(pop::tEvoPop,evo::tEvoData,maxSize::Integer;elite::Bool=fal
 	end
 end
 
+function metropolisED!(pop::tEvoPop,evo::tEvoData)
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
+			push!(evo.aEvoPop,deepcopy(pop))		# record the population
+			push!(evo.aGen,gen)						# record the generation
+			setNextAch!(evo,gen)
+			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
+		end
+		evo.mutationFactor[gen] = metropolisEvoStep!(pop)
+	end
+end
+
 export replication!, mutation!, selection!, replicationOne!, mutationOne!, selectionOne!
 export gmsEvoStep!, gmsOneEvoStep!, gmsNicEvoStep!, gmsNicOneEvoStep!
 export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!
@@ -464,8 +499,8 @@ export evoUpgrade!, upgradeGtyG!, setNextAch!
 # |  SYSTEMS  \
 # =============
 
-function fitness!(env::atEnvironment,gty::atGenotype)
-	gty.aF .= fitness(env,gty)
+function fitness!(gty::atGenotype,env::atEnvironment)
+	gty.aF .= fitness(gty,env)
 end
 
 export fitness, fitness!
@@ -553,7 +588,7 @@ function metropolis!(istMetaGty::tIsingSigTransMetaGty,Jij::Array{<:Real,1},hi::
 end
 
 # function: fitness for ising signal transduction
-function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:atIsingMetaGty})
+function fitness(gty::atSystemGty{<:atIsingMetaGty},env::tCompEnv{<:Vector{<:Vector{<:Real}}})
 	ℓVals = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		for io in env.IOidl
@@ -561,8 +596,7 @@ function fitness(env::tCompEnv{<:Vector{<:Vector{<:Real}}},gty::atSystemGty{<:at
 		end
 	end
 	d2 = maximum(ℓVals)
-	return [ d2, exp(-d2*env.aSelCoef[1]) + (gty.pMetaGty[1].halfL - BASALFITNESS),
-		exp(-d2*env.aSelCoef[2]) + (gty.pMetaGty[1].halfL - BASALFITNESS) ]
+	return d2, exp(-d2*env.aSelCoef[1]) + (gty.pMetaGty[1].halfL - BASALFITNESS), exp(-d2*env.aSelCoef[2]) + (gty.pMetaGty[1].halfL - BASALFITNESS)
 end
 
 export metropolis, metropolis!
@@ -655,7 +689,7 @@ function response(gty::atSystemGty{<:atChannelMetaGty},Input::Vector{<:Real})
 	response(gty, W, Input)
 end
 
-function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSystemGty{<:atChannelMetaGty})
+function fitness(gty::atSystemGty{<:atChannelMetaGty},env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}})
 	W = getWnrmd(gty)
 
 	d2::Float64 = 0.0
@@ -663,7 +697,7 @@ function fitness(env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},gty::atSyst
 		d2 += sum( (response(gty, W, io[1]) - io[2]).^2 )
 	end
 
-	return [ d2, exp(-d2*env.aSelCoef[1]), exp(-d2*env.aSelCoef[2])	]	# loss, replication rate function, and selection function
+	return d2, exp(-d2*env.aSelCoef[1]), exp(-d2*env.aSelCoef[2])		# loss, replication rate function, and selection function
 end
 
 export tDisChnMetaGty, response
@@ -895,12 +929,58 @@ export getFluxStat!, response!, collectResponses!, getRStat!
 # | ROBUSTNESS ANALYSIS FUNCTIONS \
 # *********************************
 
-function testGtyRbst(gty::atSystemGty,env::tCompEnv{<:Vector{<:Vector{<:Vector{<:Real}}}},fitness::Function)
-	# evaluate T and F
-	# mutate G
-	# evaluate T and F
-	# evaluate ΔT and ΔF
+sensitivity(ℓm::Real,ℓ0::Real) = (ℓm-ℓ0)/ℓ0
+
+function testRbst!(gty::atGenotype,env::atEnvironment,aRbst::Vector{Float64})
+	length(gty) == length(aRbst) || throw(DimensionMismatch("sensitivity vector's length must be the same as gty's"))
+
+	gtyClone = copy(gty)
+	for i in eachindex(aRbst)
+		copy!(gtyClone,gty)
+		mutation!(gtyClone,i)
+		fitness!(gtyClone,env)
+		aRbst[i] = sensitivity(gtyClone.aF[1],gty.aF[1])
+	end
 end
+
+function testRbst!(pop::tEvoPop,aRbst::Vector{Vector{Float64}})
+	pop.pN[2] == length(aRbst) || throw(DimensionMismatch("sensitivity array's length must be the same as Npop"))
+
+	# @showprogress 1 "Robustness Test Status: "
+	@threads for i in eachindex(aRbst)
+		testRbst!(pop.aGty[i],pop.env,aRbst[i])
+	end
+end
+
+# move to Utils
+function get_binIndex(val::T,aBins::Vector{<:T}) where T
+	for i in 1:length(aBins)-2
+		if val >= aBins[i] && val < aBins[i+1]
+			return i
+		end
+	end
+	if val >= aBins[end-1] && val <= aBins[end]
+		return length(aBins)-1
+	else
+		return 0
+	end
+end
+
+function testRbst!(pop::tEvoPop,aRbst::Vector{Vector{Float64}},prfBins::Vector{Float64})
+	length(prfBins)-1 == length(aRbst) || throw(DimensionMismatch("sensitivity array's length must be the same as prfBins-1"))
+
+	# @showprogress 1 "Robustness Test Status: "
+	@threads for gty in pop.aGty[1:pop.pN[2]]
+		iBin = get_binIndex(gty.aF[1],prfBins)
+		if iBin > 0
+			vRbst = Vector{Float64}(undef,length(gty))
+			testRbst!(gty,pop.env,vRbst)
+			append!(aRbst[iBin],vRbst)
+		end
+	end
+end
+
+export sensitivity, testRbst!
 
 # *******************
 # I/O FUNCTIONS
@@ -1016,7 +1096,7 @@ export read_aIsingSigTransGty
 # TRIVIAL
 # *******************
 
-function fitness!(trivialEty::tTrivialEty,trivialEnv::tTrivialEnv,gty::atGenotype)
+function fitness!(gty::atGenotype,trivialEnv::tTrivialEnv)
 	gty.aF[2]=1/(euclidean(gty.G,ones(Float64,gty.pMetaGty[1].dG))+FITNESSOFFSET)
 end
 

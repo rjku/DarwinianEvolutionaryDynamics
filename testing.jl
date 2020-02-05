@@ -1,31 +1,30 @@
 
-struct ciccio{T<:AbstractArray}
-	weight::T
+function changer!(vec)
+	for i in 1:length(vec)
+		vec[i] = rand()
+	end
 end
 
-struct Pasticcio{T<:ciccio}
-	size::T
-end
+testVec = zeros(7)
+testMat = zeros(7,4)
 
-testVec = [1.0]
+changer!(view(testMat,:,1))
 
-ac = [ ciccio(testVec), ciccio([testVec[1]]), ciccio(deepcopy(testVec)) ]
-push!( ac, deepcopy(ac[1]) )
-
-testVec[1] += 1.0
+testVec .+= 1
 
 display(testVec)
-display( [ ac[i].weight for i in eachindex(ac) ])
+display(testMat)
 
-function feed_ciccio!(c)
-	c = ciccio([10])
+testArrVec = [ Float64[] for i in 1:5 ]
+i = rand(1:5)
+append!(testArrVec[i],Vector{Float64}(undef, 3))
+display(testArrVec)
+
+function fill!(vec)
+	for i in eachindex(vec)
+		vec[i] = 0
+	end
 end
 
-feed_ciccio!(c)
-# display(ac[1].weight)
-
-p = Pasticcio( ac[1] )
-
-pcopy = deepcopy(p)
-
-display(( p.size.weight[1], pcopy.size.weight[1]))
+fill!(@view testArrVec[i][end-2:end])
+display(testArrVec)

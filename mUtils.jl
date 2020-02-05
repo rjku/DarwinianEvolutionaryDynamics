@@ -49,6 +49,19 @@ function cumulativeCount(θ::Real,a::AbstractArray)
 	return N/length(a)
 end
 
-export myCov, chopArray!, MPpdf, cumulativeCount
+function get_binIndex(val::T,aBins::Vector{<:T}) where T
+	for i in 1:length(aBins)-2
+		if val >= aBins[i] && val < aBins[i+1]
+			return i
+		end
+	end
+	if val >= aBins[end-1] && val <= aBins[end]
+		return length(aBins)-1
+	else
+		return 0
+	end
+end
+
+export myCov, chopArray!, MPpdf, cumulativeCount, get_binIndex
 
 end
