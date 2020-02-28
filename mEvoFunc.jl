@@ -346,7 +346,7 @@ function gmsEvoStep!(pop::tEvoPop,elite::Bool=false)
 	return gf, Nmut
 end
 
-function gmsNicEvoStep!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},elite::Bool=false)
+function gmsEvoStep!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},elite::Bool=false)
 	aGf = zeros(Float64,pop.pN[2])			# growth factor array
 	aNmut = zeros(Float64,pop.pN[2])		# N mutations array
 
@@ -419,7 +419,7 @@ function gmsNicED!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},evo::tEvoData;elite
 			setNextAch!(evo,gen)
 			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
-		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicEvoStep!(pop, aNichePop, elite)
+		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop, aNichePop, elite)
 	end
 end
 
@@ -490,9 +490,16 @@ function metropolisED!(pop::tEvoPop,evo::tEvoData)
 	end
 end
 
+function generateEvoGty!(pop::tEvoPop,Ngen::Integer;elite::Bool=false)
+	for gen in 1:Ngen
+		gmsEvoStep!(pop,elite)
+	end
+	return [ pop.aGty[rand(1:pop.pN[2])] ]
+end
+
 export replication!, mutation!, selection!, replicationOne!, mutationOne!, selectionOne!
-export gmsEvoStep!, gmsOneEvoStep!, gmsNicEvoStep!, gmsNicOneEvoStep!
-export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!
+export gmsEvoStep!, gmsOneEvoStep!, gmsNicOneEvoStep!
+export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!, generateEvoGty!
 export evoUpgrade!, upgradeGtyG!, setNextAch!
 
 # =============
@@ -931,6 +938,7 @@ export getFluxStat!, response!, collectResponses!, getRStat!
 
 sensitivity(ℓm::Real,ℓ0::Real) = (ℓm-ℓ0)/ℓ0
 
+# function: distribution of sensitivity for a given genome in a given environment
 function testRbst!(gty::atGenotype,env::atEnvironment,aRbst::Vector{Float64})
 	length(gty) == length(aRbst) || throw(DimensionMismatch("sensitivity vector's length must be the same as gty's"))
 
@@ -943,26 +951,13 @@ function testRbst!(gty::atGenotype,env::atEnvironment,aRbst::Vector{Float64})
 	end
 end
 
+# function: distribution of sensitivity for the population
 function testRbst!(pop::tEvoPop,aRbst::Vector{Vector{Float64}})
-	pop.pN[2] == length(aRbst) || throw(DimensionMismatch("sensitivity array's length must be the same as Npop"))
+	pop.pN[2] == length(aRbst) || throw(DimensionMismatch("sensitivity array's length must be the same as pop.pN[2]"))
 
 	# @showprogress 1 "Robustness Test Status: "
 	@threads for i in eachindex(aRbst)
 		testRbst!(pop.aGty[i],pop.env,aRbst[i])
-	end
-end
-
-# move to Utils
-function get_binIndex(val::T,aBins::Vector{<:T}) where T
-	for i in 1:length(aBins)-2
-		if val >= aBins[i] && val < aBins[i+1]
-			return i
-		end
-	end
-	if val >= aBins[end-1] && val <= aBins[end]
-		return length(aBins)-1
-	else
-		return 0
 	end
 end
 
@@ -979,6 +974,44 @@ function testRbst!(pop::tEvoPop,aRbst::Vector{Vector{Float64}},prfBins::Vector{F
 		end
 	end
 end
+
+# fucntion. array of vector of equal length --> array with their Hamming distances
+function hamming(a::Array{<:AbstractArray})
+	aH, iaH = Vector{Float64}(undef, Int64(( length(a) * (length(a) - 1) ) / 2) ), 0
+
+	for i in eachindex(a), j in i+1:length(a)
+		aH[iaH+=1] = Distances.hamming(a[i], a[j])
+	end
+
+	return aH
+end
+
+# function. population ⊗ performance bin --> [ array of hamming distances for each bin ]
+function hamming(pop::tEvoPop,prfBins::Vector{Float64})
+	aaH = Vector{Vector{Int64}}(undef, length(prfBins) - 1)
+
+	aBinIndex = [ get_binIndex(pop.aGty[i].aF[1],prfBins) for i in 1:pop.pN[2] ]
+	@threads for iBin in eachindex(aaH)
+		aGtyIndex = findall( e -> e == iBin, aBinIndex )
+		aaH[iBin] = hamming( [ pop.aGty[i].G for i in aGtyIndex ] )
+	end
+
+	return aaH
+end
+
+# # move to Utils
+# function get_binIndex(val::T,aBins::Vector{<:T}) where T
+# 	for i in 1:length(aBins)-2
+# 		if val >= aBins[i] && val < aBins[i+1]
+# 			return i
+# 		end
+# 	end
+# 	if val >= aBins[end-1] && val <= aBins[end]
+# 		return length(aBins)-1
+# 	else
+# 		return 0
+# 	end
+# end
 
 export sensitivity, testRbst!
 
@@ -1044,23 +1077,28 @@ function write_tEvoPop(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atIsi
 end
 
 # function: saving the evolutionary data
-function write_tEvoData(aData::Vector{tEvoData},fileTag::String)
-	open( "data/" * fileTag * "_evoData" * ".dat", "w" ) do f
+function write_tEvoData(aData::Vector{tEvoData},fileName::String)
+	open( fileName, "w" ) do f
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.avePerformance[t],"\t") end, print(f,"\n")
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.growthFactor[t],"\t") end, print(f,"\n")
 		for dataBatch in aData, t in 1:dataBatch.Ngen print(f,dataBatch.mutationFactor[t],"\t") end, print(f,"\n")
 	end
 
-	for dataBatch in aData
-		for (gen, pop)  in zip(dataBatch.aGen, dataBatch.aEvoPop)
-			write_tEvoPop( pop, "data/" * fileTag * "_g$gen")
-		end
-	end
+	# for dataBatch in aData
+	# 	for (gen, pop)  in zip(dataBatch.aGen, dataBatch.aEvoPop)
+	# 		write_tEvoPop( pop, fileTag * "_g$gen")
+	# 	end
+	# end
 end
 
 # to do: saving evolution parameters
 
 export write_DTMCprm, write_MetaGty, write_aGty, write_tEvoPop, write_tEvoData
+
+function read_tEvoData(fileName::String)
+	dataMat = readdlm( fileName )
+	return dataMat[1,:], dataMat[2,:], dataMat[3,:]
+end
 
 # read metagenotype
 function read_MetaGty(L::Integer,prms::atMonteCarloPrm,fileTag::String)::atIsingMetaGty
@@ -1090,7 +1128,7 @@ function read_aIsingSigTransAlphaGty(prms::atMonteCarloPrm,fileTag::String)
 	return aMetaGty, aGty, Npop
 end
 
-export read_aIsingSigTransGty
+export read_aIsingSigTransGty, read_tEvoData
 
 # *******************
 # TRIVIAL
@@ -1103,3 +1141,10 @@ end
 export fitness!
 
 end
+
+# to do:
+# * relax Int32 constraint from functions whenever possible;
+# * generation function randomly generating its initial population
+# * robustness anaalysis from cluster
+# * everything from jupyter
+# * check the representation of integers and Int32

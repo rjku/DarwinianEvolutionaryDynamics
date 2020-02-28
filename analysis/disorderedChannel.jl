@@ -6,8 +6,8 @@
 #     text_representation:
 #       extension: .jl
 #       format_name: light
-#       format_version: '1.4'
-#       jupytext_version: 1.2.4
+#       format_version: '1.5'
+#       jupytext_version: 1.3.2
 #   kernelspec:
 #     display_name: Julia (4 threads) 1.2.0
 #     language: julia
@@ -100,19 +100,19 @@ aDisChnDataNiche = tEvoData[];
 
 # simulated annealing with selection strength
 for i in 1:NEPOCHS
-    
+
 #     selStrength = 10.0^(-i%3+1)
 #     disChnEnv = tCompEnv(aIO, SELSTRENGTH)
 #     disChnEty = tPntMutEty(REPFACTOR,PNTMUTFACTOR,[ aDisChnMetaGty[1].dG ],NMUTMAX);
-    
+
 #     disChnPop = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGty );
     disChnPopElite = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyElite );
 #     disChnPopNiche = mEvoFunc.initEvoPop( NPOP,disChnEty,disChnEnv,aDisChnMetaGty,aDisChnGtyNiche );
-    
+
 #     push!( aDisChnData, tEvoData(NGEN, LOGFASMPL) )
     push!( aDisChnDataElite, tEvoData(NGEN, LOGFASMPL) )
 #     push!( aDisChnDataNiche, tEvoData(NGEN, LOGFASMPL) )
-    
+
 #     mEvoFunc.gmsPopED!(disChnPop,aDisChnData[end],elite=false)
     mEvoFunc.gmsPopED!(disChnPopElite,aDisChnDataElite[end],elite=true)
 #     mEvoFunc.gmsNicED!(disChnPopNiche,aDisChnDataNiche[end])

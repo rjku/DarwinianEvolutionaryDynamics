@@ -175,7 +175,7 @@ ldf = REPFACTOR*mean(aDisChnData[end].aveFitness[end-Nsmpls:end]) - mean(aDisChn
 # ## Performance Analysis
 
 # +
-binsLoss = collect(0.1:0.05:1.2)
+binsLoss = collect(0.2:0.05:1.2)
 
 # for iBatch in 1:length(aDisChnData)-1
 #     subplots(2,2,figsize=(12,7))
@@ -252,6 +252,11 @@ subplots(figsize=(14,10));
     mPlot.draw_boxplot(aRagfMetro,binsLoss,width,offsets[end],"tab:red");
 xlabel("Loss, ℓ"); suptitle("robustness values at given performance", fontsize=14);
 # -
+
+maxS = [ aRagfOne[i] == [] ? 0 : maximum(aRagfOne[i]) for i in eachindex(aRagfOne) ];
+step(binsLoss[2:end],maxS)
+
+hist(aRagfOne[8],10,density=true,log=true,rwidth=.9);
 
 # ## Genotype and Response Analysis
 #

@@ -1,9 +1,27 @@
 
-function changer!(vec)
-	for i in 1:length(vec)
-		vec[i] = rand()
-	end
+using Distances
+
+a = rand(1:3, 5)
+b = rand(1:3, 5)
+
+display( Distances.hamming( a,b ) )
+
+display( findall( e -> e == 5, a ) )
+
+struct Ciccio
+	height::Float64
+	weight::Float64
 end
+
+function uno(T::Type,f1,f2)
+	return T(f1,f2)
+end
+
+ac = uno(Ciccio,1.,2.)
+
+push!(ac, Ciccio(2,1))
+
+println(ac)
 
 testVec = zeros(7)
 testMat = zeros(7,4)
