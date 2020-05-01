@@ -2,16 +2,16 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,jl
+#     formats: ipynb,jl:light
 #     text_representation:
 #       extension: .jl
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.2
+#       jupytext_version: 1.4.1
 #   kernelspec:
-#     display_name: Julia (4 threads) 1.2.0
+#     display_name: Julia (4 threads) 1.4.0
 #     language: julia
-#     name: julia-(4-threads)-1.2
+#     name: julia-(4-threads)-1.4
 # ---
 
 using Revise, BenchmarkTools, PyPlot, MATLAB, Distances

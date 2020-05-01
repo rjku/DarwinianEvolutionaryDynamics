@@ -411,13 +411,14 @@ end
 
 # function: genetic evolution with selection within population niches
 function gmsNicED!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},evo::tEvoData;elite::Bool=false)
-	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+	# @showprogress 1 "Evolutionary Dynamics Status: "
+	for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			push!(evo.aEvoPop,deepcopy(pop))		# record the population
 			push!(evo.aGen,gen)						# record the generation
 			setNextAch!(evo,gen)
-			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
+			# println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop, aNichePop, elite)
 	end
@@ -427,14 +428,15 @@ end
 function gmsNicOneED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
 	aNicPop = [ tEvoPop( [Int32(1), Int32(1)], pop.ety, pop.env, pop.aMetaGty, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
 
-	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+	# @showprogress 1 "Evolutionary Dynamics Status: "
+	for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [aNicPop[i].aGty[1].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			pop.aGty[1:pop.pN[2]] .= [ aNicPop[i].aGty[1] for i in 1:pop.pN[2] ]
 			push!(evo.aEvoPop,deepcopy(pop))
 			push!(evo.aGen,gen)
 			setNextAch!(evo,gen)
-			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
+			# println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicOneEvoStep!(aNicPop,elite)
 	end
@@ -446,13 +448,14 @@ end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
 function gmsPopED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
-	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+	# @showprogress 1 "Evolutionary Dynamics Status: "
+	for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			push!(evo.aEvoPop,deepcopy(pop))
 			push!(evo.aGen,gen)
 			setNextAch!(evo,gen)
-			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
+			# println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
 
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop,elite)
@@ -463,13 +466,14 @@ end
 
 # function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
 function gmsPopEDup!(pop::tEvoPop,evo::tEvoData,maxSize::Integer;elite::Bool=false)
-	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+	# @showprogress 1 "Evolutionary Dynamics Status: "
+	for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^( -evo.pAveFt[1] )
 			push!(evo.aEvoPop,deepcopy(pop))
 			push!(evo.aGen,gen)
 			setNextAch!(evo,gen)
-			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
+			# println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
 
 		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop,elite)
@@ -478,13 +482,14 @@ function gmsPopEDup!(pop::tEvoPop,evo::tEvoData,maxSize::Integer;elite::Bool=fal
 end
 
 function metropolisED!(pop::tEvoPop,evo::tEvoData)
-	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+	# @showprogress 1 "Evolutionary Dynamics Status: "
+	for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			push!(evo.aEvoPop,deepcopy(pop))		# record the population
 			push!(evo.aGen,gen)						# record the generation
 			setNextAch!(evo,gen)
-			println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
+			# println("\nEvolutionary achievement at generation $gen: ⟨f⟩ = ", evo.avePerformance[gen] )
 		end
 		evo.mutationFactor[gen] = metropolisEvoStep!(pop)
 	end
@@ -714,24 +719,38 @@ export tDisChnMetaGty, response
 # | STATISTICS FUNCTIONS  \
 # *************************
 
-function getGStat!(pop::tEvoPop,Gstat::tStat)
-	mapreduce( x -> x ==  pop.aGty[1].pMetaGty[1].dG, &, [ pop.aGty[i].pMetaGty[1].dG for i in 2:pop.pN[2] ] ) ||
+function getGStat(pop::tEvoPop)
+	# throw error if genomes have different sizes
+	mapreduce( x -> x == length(pop.aGty[1]), &, [ length(pop.aGty[i]) for i in 2:pop.pN[2] ] ) ||
 		throw(DimensionMismatch("inconsistent dimensions"))
 
-	for x in 1:pop.aGty[1].pMetaGty[1].dG
-		Gstat.ave[x] = mean( [pop.aGty[i].G[x] for i in 1:pop.pN[2]] )
+	Gstat = tStat(length(pop.aGty[1]) + 1)
+
+	for j in 1:length(pop.aGty[1])
+		Gstat.ave[j] = mean( [pop.aGty[i].G[j] for i in 1:pop.pN[2]] )
+	end
+	Gstat.ave[end] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+
+	for k in 1:length(pop.aGty[1])
+		for j in 1:k
+			Gstat.cov[j,k] = myCov( [ pop.aGty[i].G[j] for i in 1:pop.pN[2] ], Gstat.ave[j], [ pop.aGty[i].G[k] for i in 1:pop.pN[2] ], Gstat.ave[k] )
+			Gstat.cov[k,j] = Gstat.cov[j,k]
+		end
+	end
+	for j in 1:length(pop.aGty[1])
+		Gstat.cov[j,end] = myCov( [ pop.aGty[i].G[j] for i in 1:pop.pN[2] ], Gstat.ave[j], [ pop.aGty[i].aF[1] for i in 1:pop.pN[2] ], Gstat.ave[end] )
+		Gstat.cov[end,j] = Gstat.cov[j,end]
+	end
+	Gstat.cov[end,end] = myCov( [ pop.aGty[i].aF[1] for i in 1:pop.pN[2] ], Gstat.ave[end], [ pop.aGty[i].aF[1] for i in 1:pop.pN[2] ], Gstat.ave[end] )
+
+	for k in eachindex(Gstat.ave), j in eachindex(Gstat.ave)
+		Gstat.cor[j,k] = Gstat.cov[j,k]/sqrt(Gstat.cov[j,j]*Gstat.cov[k,k])
 	end
 
-	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
-		Gstat.cov[x,y] = myCov( [ pop.aGty[i].G[x] for i in 1:pop.pN[2] ], Gstat.ave[x], [ pop.aGty[i].G[y] for i in 1:pop.pN[2] ], Gstat.ave[y] )
-	end
-
-	for y in 1:pop.aGty[1].pMetaGty[1].dG, x in 1:pop.aGty[1].pMetaGty[1].dG
-		Gstat.cor[x,y] = Gstat.cov[x,y]/sqrt(Gstat.cov[x,x]*Gstat.cov[y,y])
-	end
+	return Gstat
 end
 
-export getGStat!
+export getGStat
 
 # **********************************
 # | STATISTICS FUNCTIONS --- ISING \
@@ -892,45 +911,65 @@ function getCrntPtrn!(gty::atSystemGty{<:atChannelMetaGty},fluxPtrn::tFluxPatter
 	end
 end
 
-function response!(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,Input::Vector{<:Real},p)
-	length(Input) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
-	W[1:gty.pMetaGty[1].L,end] = Input
+function response(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,IOidl::Vector{<:Vector{<:Real}})
+	length(IOidl[1]) == gty.pMetaGty[1].L || throw( "inconsistent dimensions between input currents and system" )
+
+	# 1:L raws are the first L states where the flow eneters. end column is the hidden state
+	W[1:gty.pMetaGty[1].L,end] = IOidl[1]
 	b = zeros(Float64,gty.pMetaGty[1].L2+1);	b[end] = 1.0
 
-	p .= ( W \ b )[1:end-1]
+	# site probability evaluation
+	p = W \ b
+
+	# output evaluation
+	o = gty.pMetaGty[1].kout .* p[gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2]
+
+	# fitness contribution stored in place of the hidden state probability
+	p[end] = sum( (o - IOidl[2]).^2 )
+
+	return p
 end
 
-function collectResponses!(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},aResp::AbstractArray)
+function getResponses(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}})
+
+	# matrix. rows: samples x i/o. columns: response variable + fitness contribution
+	aRsp = Array{Float64}(undef, pop.pN[2]*length(pop.env.IOidl), pop.aMetaGty[1].L2 + 1)
+
 	i = 0
 	for gty in pop.aGty[1:pop.pN[2]]
 		W = getWnrmd(gty)
 		for io in pop.env.IOidl
-			response!(gty,W,io[1],view(aResp,i+=1,:))
+			aRsp[i+=1,:] .= response(gty, W, io)
 		end
 	end
+
+	return aRsp
 end
 
-function getRStat!(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},Rstat::tStat)
+# function: response statistics
+function getRStat(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}})
 
-	aResp = Array{Float64}(undef, pop.pN[2]*length(pop.env.IOidl), pop.aMetaGty[1].L2)
-	collectResponses!(pop,aResp)
+	Rstat = tStat(pop.aMetaGty[1].L2+1)
+	aRsp = getResponses(pop)
 
-	for x in 1:pop.aMetaGty[1].L2
-		Rstat.ave[x] = mean( aResp[:,x] )
+	for i in 1:pop.aMetaGty[1].L2+1
+		Rstat.ave[i] = mean( aRsp[:,i] )
 	end
 
-	for y in 1:pop.aMetaGty[1].L2, x in 1:pop.aMetaGty[1].L2
-		Rstat.cov[x,y] = myCov( aResp[:,x], Rstat.ave[x], aResp[:,y], Rstat.ave[y] )
+	for j in 1:pop.aMetaGty[1].L2+1, i in 1:j
+		Rstat.cov[i,j] = myCov( aRsp[:,i], Rstat.ave[i], aRsp[:,j], Rstat.ave[j] )
+		Rstat.cov[j,i] = Rstat.cov[i,j]
 	end
 
-	for y in 1:pop.aMetaGty[1].L2, x in 1:pop.aMetaGty[1].L2
-		Rstat.cor[x,y] = Rstat.cov[x,y]/sqrt(Rstat.cov[x,x]*Rstat.cov[y,y])
+	for j in 1:pop.aMetaGty[1].L2+1, i in 1:j
+		Rstat.cor[i,j] = Rstat.cov[i,j]/sqrt(Rstat.cov[i,i]*Rstat.cov[j,j])
+		Rstat.cor[j,i] = Rstat.cor[i,j]
 	end
 
-	return aResp
+	return aRsp[:,1:end-1], Rstat
 end
 
-export getFluxStat!, response!, collectResponses!, getRStat!
+export getFluxStat!, getResponses, getRStat
 
 # *********************************
 # | ROBUSTNESS ANALYSIS FUNCTIONS \

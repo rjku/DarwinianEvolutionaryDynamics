@@ -324,19 +324,20 @@ function tCrntPattern(env::atCompEnv,gty::atSystemGty{<:atChannelMetaGty})
 	)
 end
 
+# type: statistics: average, covariance, and correlations
 struct tStat{Tave<:Vector{<:Number},Tcov<:Array{<:Number}}
 	ave::Tave
 	cov::Tcov
 	cor::Tcov
 end
 
-tStat(gty::atSystemGty) = tStat(
-	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG),
-	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG,gty.pMetaGty[1].dG),
-	Array{typeof(gty.G[1])}(undef,gty.pMetaGty[1].dG,gty.pMetaGty[1].dG)
+tStat(gty::atGenotype) = tStat(
+	Array{typeof(gty.G[1])}(undef,length(gty)),
+	Array{typeof(gty.G[1])}(undef,length(gty),length(gty)),
+	Array{typeof(gty.G[1])}(undef,length(gty),length(gty))
 )
 
-tStat(Nv::Int32) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv), Array{Float64}(undef,Nv,Nv) )
+tStat(Nv::Integer) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv), Array{Float64}(undef,Nv,Nv) )
 
 export tEvoData, tEvoPop, tFluxPattern, tCrntPattern, tStat
 

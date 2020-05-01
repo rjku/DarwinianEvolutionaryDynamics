@@ -7,11 +7,11 @@
 #       extension: .jl
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.2
+#       jupytext_version: 1.4.1
 #   kernelspec:
-#     display_name: Julia (4 threads) 1.3.1
+#     display_name: Julia (4 threads) 1.4.0
 #     language: julia
-#     name: julia-(4-threads)-1.3
+#     name: julia-(4-threads)-1.4
 # ---
 
 # +
