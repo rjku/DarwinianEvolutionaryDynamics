@@ -499,12 +499,20 @@ function generateEvoGty!(pop::tEvoPop,Ngen::Integer;elite::Bool=false)
 	for gen in 1:Ngen
 		gmsEvoStep!(pop,elite)
 	end
-	return [ pop.aGty[rand(1:pop.pN[2])] ]
+	return [ pop.aGty[rand(THREADRNG[threadid()],1:pop.pN[2])] ]
+end
+
+function generateMetGty!(gty::atGenotype,env::atEnvironment,Ngen::Integer)
+	for gen in 1:Ngen
+		metropolisEvoStep!(gty,env)
+	end
+	return [ gty ]
 end
 
 export replication!, mutation!, selection!, replicationOne!, mutationOne!, selectionOne!
-export gmsEvoStep!, gmsOneEvoStep!, gmsNicOneEvoStep!
-export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!, generateEvoGty!
+export gmsEvoStep!, gmsOneEvoStep!, gmsNicOneEvoStep!, metropolisEvoStep!
+export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!
+export generateEvoGty!, generateMetGty!
 export evoUpgrade!, upgradeGtyG!, setNextAch!
 
 # =============
