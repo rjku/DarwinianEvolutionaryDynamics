@@ -511,7 +511,7 @@ end
 
 export replication!, mutation!, selection!, replicationOne!, mutationOne!, selectionOne!
 export gmsEvoStep!, gmsOneEvoStep!, gmsNicOneEvoStep!, metropolisEvoStep!
-export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!
+export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!, metropolisED!
 export generateEvoGty!, generateMetGty!
 export evoUpgrade!, upgradeGtyG!, setNextAch!
 
