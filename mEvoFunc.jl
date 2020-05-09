@@ -502,6 +502,13 @@ function generateEvoGty!(pop::tEvoPop,Ngen::Integer;elite::Bool=false)
 	return [ pop.aGty[rand(THREADRNG[threadid()],1:pop.pN[2])] ]
 end
 
+function generateOneGty!(pop::tEvoPop,Ngen::Integer;elite::Bool=false)
+	for gen in 1:Ngen
+		gmsOneEvoStep!(pop,elite)
+	end
+	return [ pop.aGty[rand(THREADRNG[threadid()],1:pop.pN[2])] ]
+end
+
 function generateMetGty!(gty::atGenotype,env::atEnvironment,Ngen::Integer)
 	for gen in 1:Ngen
 		metropolisEvoStep!(gty,env)
@@ -512,7 +519,7 @@ end
 export replication!, mutation!, selection!, replicationOne!, mutationOne!, selectionOne!
 export gmsEvoStep!, gmsOneEvoStep!, gmsNicOneEvoStep!, metropolisEvoStep!
 export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!, metropolisED!
-export generateEvoGty!, generateMetGty!
+export generateEvoGty!, generateOneGty!, generateMetGty!
 export evoUpgrade!, upgradeGtyG!, setNextAch!
 
 # =============
@@ -1192,6 +1199,6 @@ end
 # to do:
 # * relax Int32 constraint from functions whenever possible;
 # * generation function randomly generating its initial population
-# * robustness anaalysis from cluster
+# * robustness analysis from cluster
 # * everything from jupyter
 # * check the representation of integers and Int32
