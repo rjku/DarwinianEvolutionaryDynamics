@@ -101,7 +101,7 @@ function mutation!(gty::tCntGty,i::Integer)
 end
 
 function mutation!(gty::atGenotype,ety::atGtyMutEty)
-	Pmut = ety.pMutFactor[1]/(1.0 + pop.ety.minRepCoef + ety.pRepFactor[1]*gty[i].aF[2])
+	Pmut = ety.pMutFactor[1]/(1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty[i].aF[2])
 	CPmut = 2length(gty)*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
@@ -120,7 +120,7 @@ function mutation!(gty::atGenotype,ety::atGtyMutEty)
 end
 
 function mutation!(gty::atGenotype,ety::atPntMutEty)
-	K = 1.0/(1.0 + pop.ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2])
+	K = 1.0/(1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2])
 	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^length(gty))		# probability of no mutation
 	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
