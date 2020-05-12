@@ -42,7 +42,7 @@ export initEvoPop
 
 # function. population replication optimized for populations of individuals (one niches)
 function replicationOne!(pop::tEvoPop)
-	Kr = pop.ety.pRepFactor[1]*pop.aGty[1].aF[2]							# effective replication factor
+	Kr = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[1].aF[2]		# effective replication factor
 	ipKr = trunc(Int32,Kr)													# floored effective replication factor
 	G::Int32 = rand(THREADRNG[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr	# fluctuating growth coefficient
 
@@ -65,7 +65,7 @@ function replication!(pop::tEvoPop)
 	G = zeros(Int32,pop.pN[2])
 
 	@threads for i in 1:pop.pN[2]
-		Kr[threadid()] = pop.ety.pRepFactor[1]*pop.aGty[i].aF[2]
+		Kr[threadid()] = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[i].aF[2]
 		ipKr[threadid()] = trunc(Int32,Kr[threadid()])
 		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
@@ -101,7 +101,7 @@ function mutation!(gty::tCntGty,i::Integer)
 end
 
 function mutation!(gty::atGenotype,ety::atGtyMutEty)
-	Pmut = ety.pMutFactor[1]/(1+ety.pRepFactor[1]*gty[i].aF[2])
+	Pmut = ety.pMutFactor[1]/(1.0 + pop.ety.minRepCoef + ety.pRepFactor[1]*gty[i].aF[2])
 	CPmut = 2length(gty)*Pmut
 	CPmut <= 1 || throw("cumulative probability of mutation exceeds 1")
 
@@ -120,7 +120,7 @@ function mutation!(gty::atGenotype,ety::atGtyMutEty)
 end
 
 function mutation!(gty::atGenotype,ety::atPntMutEty)
-	K = 1.0/(1.0 + ety.pRepFactor[1]*gty.aF[2])
+	K = 1.0/(1.0 + pop.ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2])
 	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^length(gty))		# probability of no mutation
 	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 

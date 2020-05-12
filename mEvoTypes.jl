@@ -194,11 +194,16 @@ struct tPntMutEty <: atPntMutEty
 	pRepFactor::Vector{Float64}
 	pPntMutFactor::Vector{Float64}
 	aSize2PMF::Dict{Int32,Vector{Float64}}			# genotypic dimension => [ binomial PMF of mutation ]
+	minRepCoef::Float64
 end
 
 # costructor. tPointMutationEty
-tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutMax::Integer) = tPntMutEty([repFactor],[pntMutFactor],
-	Dict( dG => [ binomial(BigInt(dG),n)*(pntMutFactor^n)*(1-pntMutFactor)^(dG-n) for n in 1:NmutMax ] for dG in adG))
+tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutMax::Integer) = tPntMutEty([repFactor], [pntMutFactor],
+	Dict( dG => [ binomial(BigInt(dG),n)*(pntMutFactor^n)*(1-pntMutFactor)^(dG-n) for n in 1:NmutMax ] for dG in adG), 0.0)
+
+# costructor. tPointMutationEty
+tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutMax::Integer,minRepCoef::Float64) = tPntMutEty([repFactor],[pntMutFactor],
+	Dict( dG => [ binomial(BigInt(dG),n)*(pntMutFactor^n)*(1-pntMutFactor)^(dG-n) for n in 1:NmutMax ] for dG in adG), minRepCoef)
 
 export tCompEnv, tTrivialEnv, tDscdtEty, tPntMutEty
 
