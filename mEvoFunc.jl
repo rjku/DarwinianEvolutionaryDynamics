@@ -516,10 +516,18 @@ function generateMetGty!(gty::atGenotype,env::atEnvironment,Ngen::Integer)
 	return [ gty ]
 end
 
+function generateRndGty!(gty::atGenotype,env::atEnvironment,Ntrials::Integer,θ::Real)
+	while gty.aF[1] > θ || trial < Ntrials
+		gty.G .= rand(THREADRNG[threadid()], gty.aMetaGty[1].g, gty.aMetaGty[1].dG)
+		fitness!(gty,env)
+	end
+	return [ gty ]
+end
+
 export replication!, mutation!, selection!, replicationOne!, mutationOne!, selectionOne!
 export gmsEvoStep!, gmsOneEvoStep!, gmsNicOneEvoStep!, metropolisEvoStep!
 export gmsNicED!, gmsNicOneED!, gmsPopED!, gmsPopEDup!, metropolisED!
-export generateEvoGty!, generateOneGty!, generateMetGty!
+export generateEvoGty!, generateOneGty!, generateMetGty!, generateRndGty!
 export evoUpgrade!, upgradeGtyG!, setNextAch!
 
 # =============

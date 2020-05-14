@@ -110,7 +110,7 @@ tMltGty(pMetaGty::Vector{Tmgty},G::Vector{Tg},δg::Tg) where {Tmgty<:atMetaGenot
 struct tAlphaGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
 	pMetaGty::Tpmgty
 	G::TG
-	g::TG
+	g::TG					# Symbols/Genotypic Values array
 	aF::Vector{Float64}		# Fitness Indicators: [ loss, replication rate function, selection function ]
 end
 

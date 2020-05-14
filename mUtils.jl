@@ -1,6 +1,12 @@
 
 module mUtils
 
+using JLD, HDF5
+
+# ========== #
+# STATISTICS #
+# ========== #
+
 function myCov(X::AbstractArray,XAve::Number,Y::AbstractArray,YAve::Number)
 	N = length(X)
 	N == length(Y) || throw(DimensionMismatch("inconsistent dimensions"))
@@ -11,7 +17,47 @@ function myCov(X::AbstractArray,XAve::Number,Y::AbstractArray,YAve::Number)
 	return cov/(N-1)
 end
 
-# Y = broadcast(-, X, mean(X,2))
+function cumulativeCount(θ::Real,a::AbstractArray)
+	N = 0
+	for e in a
+		if e >= θ
+			N += 1
+		end
+	end
+	return N/length(a)
+end
+
+function MPpdf(λ::Number,r::Number)
+	λm = (1 - sqrt(r))^2;	λp = (1 + sqrt(r))^2
+	return [ (λ >= λm) && (λ <= λp) ? sqrt( (λp - λ)*(λ - λm) )/( 2pi*r*λ ) : 0.0, λm, λp ]
+end
+
+export myCov, cumulativeCount, MPpdf
+
+# ==== #
+# MATH #
+# ==== #
+
+Base.log(a::AbstractArray{<:Real}) = map(log,a)
+Base.log(b::Real,a::AbstractArray{<:Real}) = map(e->log(b,e),a)
+log10(a::AbstractArray{<:Real}) = map(e->log(10.0,e),a)
+
+Base.exp(a::AbstractArray{<:Real}) = map(exp,a)
+
+# === #
+# I/O #
+# === #
+
+function readJLD!(fileName,typeName,pointer)
+	file = jldopen(fileName, "r")
+	push!(pointer,read(file[typeName]))
+	close(file)
+end
+
+
+# =========== #
+# MISCELLANEA #
+# =========== #
 
 function chopArray!(a::AbstractArray, δ::Float64=10^-12)
 	for (i, e) in enumerate(a)
@@ -33,22 +79,6 @@ function chopArray!(a::Array{<:Complex}, δ::Float64=10^-12)
 	end
 end
 
-function MPpdf(λ::Number,r::Number)
-	λm = (1 - sqrt(r))^2;	λp = (1 + sqrt(r))^2
-
-	return [ (λ >= λm) && (λ <= λp) ? sqrt( (λp - λ)*(λ - λm) )/( 2pi*r*λ ) : 0.0, λm, λp ]
-end
-
-function cumulativeCount(θ::Real,a::AbstractArray)
-	N = 0
-	for e in a
-		if e >= θ
-			N += 1
-		end
-	end
-	return N/length(a)
-end
-
 function get_binIndex(val::T,aBins::Vector{<:T}) where T
 	for i in 1:length(aBins)-2
 		if val >= aBins[i] && val < aBins[i+1]
@@ -62,6 +92,7 @@ function get_binIndex(val::T,aBins::Vector{<:T}) where T
 	end
 end
 
-export myCov, chopArray!, MPpdf, cumulativeCount, get_binIndex
+export chopArray!, get_binIndex
+export readJLD!
 
 end
