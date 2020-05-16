@@ -516,10 +516,12 @@ function generateMetGty!(gty::atGenotype,env::atEnvironment,Ngen::Integer)
 	return [ gty ]
 end
 
-function generateRndGty!(gty::atGenotype,env::atEnvironment,Ntrials::Integer,θ::Real)
+function generateRndGty!(gty::tAlphaGty,env::atEnvironment,Ntrials::Integer,θ::Real)
+	trial = 0
 	while gty.aF[1] > θ || trial < Ntrials
-		gty.G .= rand(THREADRNG[threadid()], gty.aMetaGty[1].g, gty.aMetaGty[1].dG)
+		gty.G .= rand(THREADRNG[threadid()], gty.g, length(gty))
 		fitness!(gty,env)
+		trial += 1
 	end
 	return [ gty ]
 end
