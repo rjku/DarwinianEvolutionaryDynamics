@@ -1,12 +1,32 @@
 
-testVec = rand(5)
-display(testVec)
+using mUtils
 
-Base.log(a::AbstractArray{<:Real}) = map(log,a)
-Base.log(b::Real,a::AbstractArray{<:Real}) = map(e->log(b,e),a)
-log10(a::AbstractArray{<:Real}) = map(e->log(10.0,e),a)
+testMat = [ [1,2] [5,2] ]
 
-display(log10(testVec))
+N = 3
+
+testMat = rand([-1,0,1],N,N)
+display(testMat)
+
+testVec = rand(N)
+display( testVec )
+
+x = testMat \ testVec
+
+display( sum(testMat .* x',dims=2) ≈ testVec )
+
+display( testMat .* testVec' .* testMat )
+
+display( transpose(transpose(testMat) .* testVec) )
+
+display( transpose(transpose(testMat) .* testVec) )
+
+newTestVec = testMat[3,:] .* testVec
+
+display( newTestVec )
+
+display(ReLog(testMat))
+
 
 map(e->log(e),testVec)
 map(log,testVec)
@@ -16,3 +36,16 @@ function main(args)
 end
 
 main(ARGS)
+
+a = Array{Matrix{Float64}}(undef, 2)
+
+a[1] = rand(2,2)
+a[2] = rand(3,4)
+
+display(a)
+
+folderVar = Base.run(`ls`)
+
+typeof(folderVar)
+
+folderVar

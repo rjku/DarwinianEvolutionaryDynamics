@@ -902,8 +902,10 @@ function getFluxStat!(env::tCompEnv,gty::atSystemGty{<:atChannelMetaGty},fluxPtr
 		chopArray!(jcov)
 
 		fluxPtrn.jave[i] .= [ -jave[j]/jave[end] for j in 1:Nq ]
-		fluxPtrn.jcov[i] .= [ -( jcov[ji,jj] + jcov[ji,end]*fluxPtrn.jave[i][jj] + jcov[jj,end]*fluxPtrn.jave[i][ji] + jcov[end,end]*fluxPtrn.jave[i][ji]*fluxPtrn.jave[i][jj] )/jave[end] for ji in 1:Nq, jj in 1:Nq ]
-		aCrntCorFisherz[i] = broadcast( r -> log( (1 + r)/(1 - r) )/2, [ fluxPtrn.jcov[i][ji,jj] / sqrt( fluxPtrn.jcov[i][ji,ji] * fluxPtrn.jcov[i][jj,jj] ) for ji in 1:Nq, jj in 1:Nq ] )
+		fluxPtrn.jcov[i] .= [ -( jcov[ji,jj] + jcov[ji,end]*fluxPtrn.jave[i][jj] + jcov[jj,end]*fluxPtrn.jave[i][ji] +
+			jcov[end,end]*fluxPtrn.jave[i][ji]*fluxPtrn.jave[i][jj] )/jave[end] for ji in 1:Nq, jj in 1:Nq ]
+		aCrntCorFisherz[i] = broadcast( r -> log( (1 + r)/(1 - r) )/2, [ fluxPtrn.jcov[i][ji,jj] /
+			sqrt( fluxPtrn.jcov[i][ji,ji] * fluxPtrn.jcov[i][jj,jj] ) for ji in 1:Nq, jj in 1:Nq ] )
 
 		q0[end] = 0.0
 	end
@@ -956,7 +958,6 @@ function response(gty::atSystemGty{<:atChannelMetaGty},W::AbstractMatrix,IOidl::
 end
 
 function getResponses(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}})
-
 	# matrix. rows: samples x i/o. columns: response variable + fitness contribution
 	aRsp = Array{Float64}(undef, pop.pN[2]*length(pop.env.IOidl), pop.aMetaGty[1].L2 + 1)
 
@@ -994,7 +995,52 @@ function getRStat(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelM
 	return aRsp[:,1:end-1], Rstat
 end
 
-export getFluxStat!, getResponses, getRStat
+# function: returns the matrix - log10 𝕎 | diagonal and entries ∅ ⇢ intrnal states are 0
+function entropyRateMtx(gty::atSystemGty{<:atChannelMetaGty},dt::Float64)
+	entropyRateMtx = sparse(gty.pMetaGty[1].V..., broadcast( e -> 1.0 - e - log10(dt), gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+	entropyRateMtx[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= 1.0 - log10(gty.pMetaGty[1].kout) - log10(dt)
+	for i in 1:gty.pMetaGty[1].L2
+		entropyRateMtx[i,i] = 0.0
+	end
+	return entropyRateMtx
+end
+
+function entropyRateMtx(pop::tEvoPop{<:atEvotype,<:atEnvironment,<:Vector{<:atChannelMetaGty},<:Vector{<:atGenotype}},dt::Float64)
+	# array. entropyRate matrix for each #samples x #i/o
+	aEntRateMtx = Array{Matrix{Float64}}(undef, pop.pN[2]*length(pop.env.IOidl))
+
+	i = 0
+	@threads for gty in pop.aGty[1:pop.pN[2]]
+		rateMtx = getWnrmd(gty)
+		entropyRateMtx = entropyRateMtx(gty,dt)
+		for io in pop.env.IOidl
+			aEntRateMtx[i+=1] = rateMtx .* response(gty, rateMtx, io)' .* entropyRateMtx
+		end
+	end
+
+	return aEntRateMtx
+end
+
+function entropyRate(pop::tEvoPop,prfBins::Vector{Float64},dt::Float64)
+	# entropy rate values ordered by performance
+	aEntRate = [ Vector{Float64}(undef, 0) for i in 1:length(prfBins)-1 ]
+
+	# @showprogress 1 "Robustness Test Status: "
+	@threads for gty in pop.aGty[1:pop.pN[2]]
+		iBin = binIndex(gty.aF[1],prfBins)
+		if iBin > 0
+			rateMtx = getWnrmd(gty)
+			entRateMtx = entropyRateMtx(gty,dt)
+			for io in pop.env.IOidl
+				push!(aEntRate[iBin], sum(rateMtx .* response(gty, rateMtx, io) .* entRateMtx))
+			end
+		end
+	end
+
+	return aEntRate
+end
+
+export getFluxStat!, getResponses, getRStat, entropyRateMtx, entropyRate
 
 # *********************************
 # | ROBUSTNESS ANALYSIS FUNCTIONS \
@@ -1030,7 +1076,7 @@ function testRbst!(pop::tEvoPop,aRbst::Vector{Vector{Float64}},prfBins::Vector{F
 
 	# @showprogress 1 "Robustness Test Status: "
 	@threads for gty in pop.aGty[1:pop.pN[2]]
-		iBin = get_binIndex(gty.aF[1],prfBins)
+		iBin = binIndex(gty.aF[1],prfBins)
 		if iBin > 0
 			vRbst = Vector{Float64}(undef,length(gty))
 			testRbst!(gty,pop.env,vRbst)
@@ -1054,7 +1100,7 @@ end
 function hamming(pop::tEvoPop,prfBins::Vector{Float64})
 	aaH = Vector{Vector{Int64}}(undef, length(prfBins) - 1)
 
-	aBinIndex = [ get_binIndex(pop.aGty[i].aF[1],prfBins) for i in 1:pop.pN[2] ]
+	aBinIndex = [ binIndex(pop.aGty[i].aF[1],prfBins) for i in 1:pop.pN[2] ]
 	@threads for iBin in eachindex(aaH)
 		aGtyIndex = findall( e -> e == iBin, aBinIndex )
 		aaH[iBin] = hamming( [ pop.aGty[i].G for i in aGtyIndex ] )
@@ -1064,7 +1110,7 @@ function hamming(pop::tEvoPop,prfBins::Vector{Float64})
 end
 
 # # move to Utils
-# function get_binIndex(val::T,aBins::Vector{<:T}) where T
+# function binIndex(val::T,aBins::Vector{<:T}) where T
 # 	for i in 1:length(aBins)-2
 # 		if val >= aBins[i] && val < aBins[i+1]
 # 			return i

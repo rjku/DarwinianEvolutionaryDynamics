@@ -42,6 +42,9 @@ Base.log(a::AbstractArray{<:Real}) = map(log,a)
 Base.log(b::Real,a::AbstractArray{<:Real}) = map(e->log(b,e),a)
 log10(a::AbstractArray{<:Real}) = map(e->log(10.0,e),a)
 
+ReLog(a::AbstractArray{<:Real}) = map(e-> e > 0 ? log(e) : 0, a)
+ReLog(b::Real,a::AbstractArray{<:Real}) = map(e -> e > 0 ? log(b,e) : 0, a)
+
 Base.exp(a::AbstractArray{<:Real}) = map(exp,a)
 
 # === #
@@ -79,7 +82,7 @@ function chopArray!(a::Array{<:Complex}, δ::Float64=10^-12)
 	end
 end
 
-function get_binIndex(val::T,aBins::Vector{<:T}) where T
+function binIndex(val::T,aBins::Vector{<:T}) where T
 	for i in 1:length(aBins)-2
 		if val >= aBins[i] && val < aBins[i+1]
 			return i
@@ -92,7 +95,7 @@ function get_binIndex(val::T,aBins::Vector{<:T}) where T
 	end
 end
 
-export chopArray!, get_binIndex
+export chopArray!, binIndex
 export readJLD!
 
 end
