@@ -1,6 +1,21 @@
 
 using mUtils
 
+struct Ciccio{Tad<:Vector{<:Dict{<:AbstractArray,Float64}}}
+    aTb::Tad
+end
+
+function Ciccio(testArray,fn)
+    table = Dict( e => fn(e) for e in testArray )
+    Ciccio([table])
+end
+
+foo(x) = Float64(sum(x.^2))
+testArray = [ [i,j] for i in 0:3, j in 0:3 ]
+
+cic = Ciccio(testArray,foo)
+display(cic.aTb[2][[2,2]])
+
 testMat = [ [1,2] [5,2] ]
 
 N = 3

@@ -7,19 +7,33 @@
 #       extension: .jl
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.2
+#       jupytext_version: 1.3.0
 #   kernelspec:
-#     display_name: Julia 1.3.1
+#     display_name: Julia (2 threads) 1.4.2
 #     language: julia
-#     name: julia-1.3
+#     name: julia-(2-threads)-1.4
 # ---
 
 # # Testing
 
-# ### Random Matrices
-
-using LinearAlgebra, Statistics, PyPlot, Revise
+using LinearAlgebra, Statistics, PyPlot, Revise, Distances
 import mUtils
+
+# ### Fictitious Fitness Landscape
+
+logistic(x,x0,k,l) = l/( 1 + exp(k*(x-x0)) )
+
+β = 0.005
+F = 1
+l = 10
+k = 1
+L = 40
+s1 = [ exp( -β*((i-L)^2 + (j-L)^2) ) + exp( -β*(i^2 + j^2) ) for i in 0:L, j in 0:L ];
+s2 = [ logistic(i,l,k,F)*logistic(j,l,k,F) for i in 0:L, j in 0:L ];
+
+imshow(s2)
+
+# ### Random Matrices
 
 # +
 N = 1000; M = 100000; c = N/M
