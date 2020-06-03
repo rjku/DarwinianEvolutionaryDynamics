@@ -14,11 +14,20 @@ const THREADRNG = let m = MersenneTwister(1)
 
 const FITNESSOFFSET, FITNESSTHRESHOLD, BASALFITNESS, MAXSIZE = 1.0, .99, 3.0, 8
 
+# population with metagenotype
 function initEvoPop( N::Int32,ety::Tety,env::Tenv,aMetaGty::Vector{Tmgty},aGty::Vector{TG} ) where {
 		Tety<:atEvotype,Tenv<:atEnvironment,Tmgty<:atMetaGenotype,TG<:atGenotype }
-	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N > length(aGty)"))
+	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N must be > length(aGty)"))
 	@threads for i in 1:N fitness!(aGty[i],env) end
 	return tEvoPop{Tety,Tenv,Vector{Tmgty},Vector{TG}}( Int32[N,N,length(aGty)],ety,env,aMetaGty,aGty )
+end
+
+# population without metagenotype
+function init_PntPop( N::Int32,ety::Tety,env::Tenv,aGty::Vector{TG} ) where {
+		Tety<:atEvotype,Tenv<:atEnvironment,TG<:atGenotype }
+	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N must be > length(aGty)"))
+	@threads for i in 1:N fitness!(aGty[i],env) end
+	return tPntPop{Tety,Tenv,Vector{TG}}( Int32[N,N,length(aGty)],ety,env,aGty )
 end
 
 # function. changing rep and mut -factors in tDscdtEty
@@ -98,6 +107,10 @@ end
 
 function mutation!(gty::tCntGty,i::Integer)
 	gty.G[i] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+end
+
+function mutation!(gty::atGenotype,ety::tPntEty)
+	
 end
 
 function mutation!(gty::atGenotype,ety::atGtyMutEty)
