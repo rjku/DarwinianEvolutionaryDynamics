@@ -3,7 +3,7 @@ module mEvoFunc
 
 using Base.Threads, SparseArrays
 using LinearAlgebra, Random, Statistics, Distributions, ForwardDiff, Distances
-using mEvoTypes, mUtils
+using mEvoTypes, mUtils, mGraphs
 using DelimitedFiles, Dates, ProgressMeter
 import Future
 
@@ -23,8 +23,7 @@ function initEvoPop( N::Int32,ety::Tety,env::Tenv,aMetaGty::Vector{Tmgty},aGty::
 end
 
 # population without metagenotype
-function init_PntPop( N::Int32,ety::Tety,env::Tenv,aGty::Vector{TG} ) where {
-		Tety<:atEvotype,Tenv<:atEnvironment,TG<:atGenotype }
+function init_tPntPop( N::Int32,ety::Tety,env::Tenv,aGty::Vector{TG} ) where { Tety<:atEvotype,Tenv<:atEnvironment,TG<:atGenotype }
 	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N must be > length(aGty)"))
 	@threads for i in 1:N fitness!(aGty[i],env) end
 	return tPntPop{Tety,Tenv,Vector{TG}}( Int32[N,N,length(aGty)],ety,env,aGty )
@@ -50,7 +49,7 @@ export initEvoPop
 # *********************************
 
 # function. population replication optimized for populations of individuals (one niches)
-function replicationOne!(pop::tEvoPop)
+function replicationOne!(pop::atPopulation)
 	Kr = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[1].aF[2]		# effective replication factor
 	ipKr = trunc(Int32,Kr)													# floored effective replication factor
 	G::Int32 = rand(THREADRNG[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr	# fluctuating growth coefficient
@@ -68,12 +67,13 @@ function replicationOne!(pop::tEvoPop)
 end
 
 # function. generic population replication
-function replication!(pop::tEvoPop)
+function replication!(pop::atPopulation)
 	Kr = Vector{Float64}(undef,nthreads())
 	ipKr = Vector{Int32}(undef,nthreads())
 	G = zeros(Int32,pop.pN[2])
 
-	@threads for i in 1:pop.pN[2]
+	# @threads
+	for i in 1:pop.pN[2]
 		Kr[threadid()] = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[i].aF[2]
 		ipKr[threadid()] = trunc(Int32,Kr[threadid()])
 		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
@@ -109,8 +109,23 @@ function mutation!(gty::tCntGty,i::Integer)
 	gty.G[i] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
 end
 
-function mutation!(gty::atGenotype,ety::tPntEty)
-	
+function mutation!(gty::tPntGty,ety::tPntEty)
+	aAdjV, aMutProb = neighbors(ety.G, gty.G[1])
+	r::Float64 = rand(THREADRNG[threadid()])
+
+	if r <= sum(aMutProb)
+		i::Int32 = 1
+		CDFmut = aMutProb[1]
+
+		while CDFmut < r
+			CDFmut += aMutProb[i += 1]
+		end
+
+		gty.G[1] = aAdjV[i]
+		return Int32(1)
+	else
+		return Int32(0)
+	end
 end
 
 function mutation!(gty::atGenotype,ety::atGtyMutEty)
@@ -157,7 +172,7 @@ function mutation!(gty::atGenotype,ety::atPntMutEty)
 end
 
 # function. effective mutation: blindly mutate the population's genotype according to the effective dynamical mutation rate
-function mutationOne!(pop::tEvoPop)
+function mutationOne!(pop::atPopulation)
 	aNmut = Vector{Int32}(undef,pop.pN[1])
 	for i in 1:pop.pN[1]
 		aNmut[i] = mutation!(pop.aGty[i],pop.ety)
@@ -169,7 +184,7 @@ function mutationOne!(pop::tEvoPop)
 end
 
 # function. effective mutation: blindly mutate the population's genotype according to the effective dynamical mutation rate
-function mutation!(pop::tEvoPop)
+function mutation!(pop::atPopulation)
 	aNmut = Vector{Int32}(undef,pop.pN[1])
 	@threads for i in 1:pop.pN[1]
 		aNmut[i] = mutation!(pop.aGty[i],pop.ety)
@@ -192,7 +207,7 @@ function selectionOne(aSelFncVals::Vector{<:Real})
 end
 
 # function. selection of the fittest within the niche population
-function selectionOne!(pop::tEvoPop,elite::Bool=false)
+function selectionOne!(pop::atPopulation,elite::Bool=false)
 	if elite
 		fmax = maximum([ gty.aF[3] for gty in pop.aGty[1:pop.pN[1]] ])
 		iSelected = findfirst( f -> f == fmax, [ gty.aF[2] for gty in pop.aGty[1:pop.pN[1]] ] )
@@ -219,7 +234,7 @@ function selection!(aSelFncVals::Vector{<:Real},aiSelected::Vector{<:Integer})
 end
 
 # function. effective selection: pruning of the population
-function selection!(pop::tEvoPop,elite::Bool=false)
+function selection!(pop::atPopulation,elite::Bool=false)
 	popGtyRef::Array{atGenotype,1} = copy(pop.aGty)
 
 	if elite
@@ -351,7 +366,7 @@ end
 
 # function: population evolutionary step: growth, mutation, and selection
 # returns: growth factor and number of mutations
-function gmsEvoStep!(pop::tEvoPop,elite::Bool=false)
+function gmsEvoStep!(pop::atPopulation,elite::Bool=false)
 	gf = replication!(pop)
 	Nmut = mutation!(pop)
 	selection!(pop,elite)
@@ -359,7 +374,7 @@ function gmsEvoStep!(pop::tEvoPop,elite::Bool=false)
 	return gf, Nmut
 end
 
-function gmsEvoStep!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},elite::Bool=false)
+function gmsEvoStep!(pop::atPopulation,aNichePop::Vector{<:atPopulation},elite::Bool=false)
 	aGf = zeros(Float64,pop.pN[2])			# growth factor array
 	aNmut = zeros(Float64,pop.pN[2])		# N mutations array
 
@@ -377,7 +392,7 @@ end
 
 # function: individual evolutionary step: growth, mutation, and selection
 # returns: growth factor and number of mutations
-function gmsOneEvoStep!(pop::tEvoPop,elite::Bool=false)
+function gmsOneEvoStep!(pop::atPopulation,elite::Bool=false)
 	growth = replicationOne!(pop)
 	Nmut = mutationOne!(pop)
 	selectionOne!(pop,elite)
@@ -385,7 +400,7 @@ function gmsOneEvoStep!(pop::tEvoPop,elite::Bool=false)
 	return growth, Nmut
 end
 
-function gmsNicOneEvoStep!(aNicPop::Vector{<:tEvoPop},elite::Bool=false)
+function gmsNicOneEvoStep!(aNicPop::Vector{<:atPopulation},elite::Bool=false)
 	aGf = zeros(Float64,length(aNicPop))		# growth factor array
 	aNmut = zeros(Float64,length(aNicPop))		# N mutations array
 
@@ -412,7 +427,7 @@ function metropolisEvoStep!(gty::atGenotype,env::atEnvironment)
 	return Nmut
 end
 
-function metropolisEvoStep!(pop::tEvoPop)
+function metropolisEvoStep!(pop::atPopulation)
 	aNmut = Vector{Int32}(undef,pop.pN[2])
 	@threads for i in 1:pop.pN[2]
 		aNmut[i] = metropolisEvoStep!(pop.aGty[i],pop.env)
@@ -423,9 +438,16 @@ end
 # Fave + ( 1. - ( Fave % 1 ) ) % ( 1/3 ) + .2
 
 # function: genetic evolution with selection within population niches
+function gmsNicED!(pop::tPntPop,aNichePop::Vector{<:tPntPop},evo::EvoData;elite::Bool=false)
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop, aNichePop, elite)
+	end
+end
+
+# function: genetic evolution with selection within population niches
 function gmsNicED!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},evo::tEvoData;elite::Bool=false)
-	# @showprogress 1 "Evolutionary Dynamics Status: "
-	for gen in 1:evo.Ngen
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			push!(evo.aEvoPop,deepcopy(pop))		# record the population
@@ -438,11 +460,24 @@ function gmsNicED!(pop::tEvoPop,aNichePop::Vector{<:tEvoPop},evo::tEvoData;elite
 end
 
 # function: genetic evolution with selection within individual niches
+function gmsNicOneED!(pop::tPntPop,evo::EvoData;elite::Bool=false)
+	aNicPop = [ tPntPop( [Int32(1), Int32(1), Int32(1)], pop.ety, pop.env, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
+
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.avePerformance[gen] = mean( [aNicPop[i].aGty[1].aF[1] for i in 1:pop.pN[2]] )
+		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsNicOneEvoStep!(aNicPop,elite)
+	end
+
+	for i in 1:pop.pN[2]
+		pop.aGty[i] = aNicPop[i].aGty[1]
+	end
+end
+
+# function: genetic evolution with selection within individual niches
 function gmsNicOneED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
 	aNicPop = [ tEvoPop( [Int32(1), Int32(1)], pop.ety, pop.env, pop.aMetaGty, [pop.aGty[i]] ) for i in 1:pop.pN[2] ]
 
-	# @showprogress 1 "Evolutionary Dynamics Status: "
-	for gen in 1:evo.Ngen
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [aNicPop[i].aGty[1].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			pop.aGty[1:pop.pN[2]] .= [ aNicPop[i].aGty[1] for i in 1:pop.pN[2] ]
@@ -459,10 +494,19 @@ function gmsNicOneED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
 	end
 end
 
-# function: genetic evolution a la Giardina--Kurchan--Peliti with genetic upgrade
+# function: genetic evolution a la Giardina--Kurchan--Peliti
+function gmsPopED!(pop::tPntPop,evo::EvoData;elite::Bool=false)
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
+		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
+		evo.growthFactor[gen], evo.mutationFactor[gen] = gmsEvoStep!(pop,elite)
+	end
+
+	return pop, evo
+end
+
+# function: genetic evolution a la Giardina--Kurchan--Peliti
 function gmsPopED!(pop::tEvoPop,evo::tEvoData;elite::Bool=false)
-	# @showprogress 1 "Evolutionary Dynamics Status: "
-	for gen in 1:evo.Ngen
+	@showprogress 1 "Evolutionary Dynamics Status: " for gen in 1:evo.Ngen
 		evo.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 		if evo.avePerformance[gen] <= evo.pMinF[1] + 10^(- evo.pAveFt[1])
 			push!(evo.aEvoPop,deepcopy(pop))
@@ -551,6 +595,10 @@ export evoUpgrade!, upgradeGtyG!, setNextAch!
 
 function fitness!(gty::atGenotype,env::atEnvironment)
 	gty.aF .= fitness(gty,env)
+end
+
+function fitness!(gty::tPntGty,env::tPntEnv)
+	gty.aF .= [ env.fTb[1][gty.G[1]], exp(env.fTb[1][gty.G[1]]*env.aSelCoef[1]), exp(env.fTb[1][gty.G[1]]*env.aSelCoef[2]) ]
 end
 
 export fitness, fitness!
@@ -756,6 +804,15 @@ export tDisChnMetaGty, response
 # *************************
 # | STATISTICS FUNCTIONS  \
 # *************************
+
+function popStatistics(pop::tPntPop)
+	aG = [ pop.aGty[i].G[1] for i in 1:pop.pN[2] ]
+	p = zeros( pop.ety.G.Nv )
+	for g in aG
+		p[g] += 1
+	end
+	return p/pop.pN[2]
+end
 
 function getGStat(pop::tEvoPop)
 	# throw error if genomes have different sizes

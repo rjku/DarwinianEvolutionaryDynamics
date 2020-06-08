@@ -16,6 +16,16 @@ testArray = [ [i,j] for i in 0:3, j in 0:3 ]
 cic = Ciccio(testArray,foo)
 display(cic.aTb[2][[2,2]])
 
+using SparseArrays
+A = sparse( [1,4,3], [2,7,2], [7.0,8.8,2.0], 10, 10)
+
+display(nzrange(A,2))
+
+testArray = [ rand(1:5,5), rand(1:5,5) ]
+
+display( testArray )
+display( testArray[2][ findall( e -> e == 1, testArray[1] ) ] )
+
 testMat = [ [1,2] [5,2] ]
 
 N = 3
@@ -64,3 +74,25 @@ folderVar = Base.run(`ls`)
 typeof(folderVar)
 
 folderVar
+
+using Revise
+import mGraphs
+
+testVec = rand(12)
+display( testVec )
+
+square = mGraphs.FiniteSquareLattice(3)
+weighted = mGraphs.EdgeWeightedSquareLattice(3, testVec)
+
+display( mGraphs.neighbors(square,1) )
+display( mGraphs.neighbors(weighted,5) )
+
+display( Array(mGraphs.transitionMatrix(square)) )
+
+maximum([1,2,3])
+
+testVec = rand(3)
+testMat = rand([0,1],3,3)
+
+display( testMat )
+display( testMat * testVec )
