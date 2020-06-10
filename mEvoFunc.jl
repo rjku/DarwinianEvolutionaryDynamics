@@ -50,7 +50,7 @@ export initEvoPop
 
 # function. population replication optimized for populations of individuals (one niches)
 function replicationOne!(pop::atPopulation)
-	Kr = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[1].aF[2]		# effective replication factor
+	Kr = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[1].aF[2]		# effective replication factor. missing plus one = original individual
 	ipKr = trunc(Int32,Kr)													# floored effective replication factor
 	G::Int32 = rand(THREADRNG[threadid()]) < Kr - ipKr ? ipKr + 1 : ipKr	# fluctuating growth coefficient
 
@@ -111,8 +111,9 @@ end
 
 function mutation!(gty::tPntGty,ety::tPntEty)
 	aAdjV, aMutProb = neighbors(ety.G, gty.G[1])
-	r::Float64 = rand(THREADRNG[threadid()])
+	aMutProb .= aMutProb / ( 1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2] )
 
+	r::Float64 = rand(THREADRNG[threadid()])
 	if r <= sum(aMutProb)
 		i::Int32 = 1
 		CDFmut = aMutProb[1]
@@ -552,14 +553,14 @@ function metropolisED!(pop::tEvoPop,evo::tEvoData)
 	end
 end
 
-function generateEvoGty!(pop::tEvoPop,Ngen::Integer;elite::Bool=false)
+function generateEvoGty!(pop::atPopulation,Ngen::Integer;elite::Bool=false)
 	for gen in 1:Ngen
 		gmsEvoStep!(pop,elite)
 	end
 	return [ pop.aGty[rand(THREADRNG[threadid()],1:pop.pN[2])] ]
 end
 
-function generateOneGty!(pop::tEvoPop,Ngen::Integer;elite::Bool=false)
+function generateOneGty!(pop::atPopulation,Ngen::Integer;elite::Bool=false)
 	for gen in 1:Ngen
 		gmsOneEvoStep!(pop,elite)
 	end

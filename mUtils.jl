@@ -47,6 +47,9 @@ ReLog(b::Real,a::AbstractArray{<:Real}) = map(e -> e > 0 ? log(b,e) : 0, a)
 
 Base.exp(a::AbstractArray{<:Real}) = map(exp,a)
 
+KLdivergence(p::AbstractArray{<:Real},q::AbstractArray{<:Real}) = sum( p .* ReLog( p ./ q ) )
+KLdivergence(p::AbstractArray{<:Real},q::AbstractArray{<:Real},b::Real) = sum( p .* ReLog( b, p ./ q ) )
+
 # === #
 # I/O #
 # === #

@@ -94,5 +94,8 @@ maximum([1,2,3])
 testVec = rand(3)
 testMat = rand([0,1],3,3)
 
+testVec .= testVec * 10
+
+display( testVec )
 display( testMat )
 display( testMat * testVec )
