@@ -54,9 +54,17 @@ KLdivergence(p::AbstractArray{<:Real},q::AbstractArray{<:Real},b::Real) = sum( p
 # I/O #
 # === #
 
-function readJLD!(fileName,typeName,pointer)
+function readJLD(fileName,type)
 	file = jldopen(fileName, "r")
-	push!(pointer,read(file[typeName]))
+	object = read(file[type])
+	close(file)
+
+	return object
+end
+
+function readJLD!(fileName,type,pointer)
+	file = jldopen(fileName, "r")
+	push!(pointer,read(file[type]))
 	close(file)
 end
 
