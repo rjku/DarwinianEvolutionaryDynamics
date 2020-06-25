@@ -1,6 +1,19 @@
 
 using mUtils
 
+testVec = rand(5)
+testMat = rand(3,5)
+
+draw(testMat[:,4],2)
+
+using Random, Distributions
+
+p = testVec / sum(testVec)
+
+d = Categorical(p)
+
+rand(d)
+
 struct Ciccio{Tad<:Vector{<:Dict{<:AbstractArray,Float64}}}
     aTb::Tad
 end
@@ -94,7 +107,25 @@ maximum([1,2,3])
 testVec = rand(3)
 testMat = rand([0,1],3,3)
 
+for e in testMat[[1,3],2]
+    println(e)
+end
+
 testVec .= testVec * 10
+
+using SparseArrays
+
+A = sparse(2I, 3, 3)
+
+using Revise
+import mGraphs
+
+square = mGraphs.FiniteSquareLattice(5)
+
+mGraphs.areNeighbors(square,2,7)
+
+int = 3.0
+x = typeof(int)(rand(0:length(testVec)))
 
 display( testVec )
 display( testMat )

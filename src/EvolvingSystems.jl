@@ -1,54 +1,11 @@
 
-module mEvoTypes
-
-using mGraphs
-
-# *******************
-#   ABSTRACT TYPES
-# *******************
-
-# ===================
-# simulation types
-abstract type atMonteCarloPrm end
-
-export atMonteCarloPrm
-
-# ===================
-# environmental types
-abstract type atEnvironment end
-
-# computational: input--ideal-output | T relates to the representation ...
-abstract type atCompEnv <: atEnvironment end
-
-export atEnvironment, atCompEnv
-
-# ===================
-# population dynamics types
-abstract type atPopulation end
-
-abstract type atEvotype end
-abstract type atMetaGenotype end
-abstract type atGenotype end							# abstract genotypes are endowed with a genome vector G
-
-Base.length(gty::atGenotype) = length(gty.G)
-
-abstract type atPhenotype end
-
-abstract type atGtyMutEty <: atEvotype end
-abstract type atPntMutEty <: atEvotype end
-
 abstract type atIsingMetaGty <: atMetaGenotype end
 abstract type atChannelMetaGty <: atMetaGenotype end
 
-abstract type atSystemGty{Tmgty} <: atGenotype end		# genotypes endowed with a pointer to a atMetaGenotype: pMetaGty
+abstract type atMonteCarloPrm end
 
-export atPopulation, atEvotype, atGtyMutEty, atPntMutEty, atMetaGenotype, atIsingMetaGty, atChannelMetaGty
-export atGenotype, atPhenotype, atSystemGty
+export atIsingMetaGty, atChannelMetaGty, atMonteCarloPrm
 
-
-# *******************
-#   CONCRETE TYPES
-# *******************
 
 # ==============
 #   SIMULATION
@@ -68,13 +25,7 @@ export tDTMCprm
 # =================
 
 # type: computational environment
-struct tPntEnv{T<:Vector{<:Vector{<:Real}}} <: atEnvironment
-	fTb::T
-	aSelCoef::Vector{Float64}
-end
-
-# type: computational environment
-struct tDctEnv{T<:Vector{<:Dict{<:AbstractArray,<:Real}}} <: atEnvironment
+struct tDctEnv{T<:Vector{<:Dict{<:AbstractArray,<:Real}}} <: AbstractEnvironment
 	fTb::T
 	aSelCoef::Vector{Float64}
 end
@@ -89,9 +40,9 @@ struct tCompEnv{T<:Vector{<:AbstractVector}} <: atCompEnv
 end
 
 # type: trivial environment
-struct tTrivialEnv <: atEnvironment end
+struct tTrivialEnv <: AbstractEnvironment end
 
-export tCompEnv, tPntEnv, tTrivialEnv
+export tCompEnv, tTrivialEnv
 
 # ==============
 #   POPULATION
@@ -100,16 +51,6 @@ export tCompEnv, tPntEnv, tTrivialEnv
 # -------------------
 #   GENOTYPES
 # -------------------
-
-# type: point genotype
-struct tPntGty{TG<:AbstractArray} <: atGenotype
-	G::TG
-	aF::Vector{Float64}
-end
-
-tPntGty(G) = tPntGty(G,[0.0,0.0,0.0])
-
-Base.copy(gty::tPntGty) = tPntGty( deepcopy(gty.G), deepcopy(gty.aF) )
 
 # type: genotype with additive genotypic variations
 struct tAddGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},Tg<:Number,TG<:AbstractArray{Tg}} <: atSystemGty{Tmgty}
@@ -189,23 +130,16 @@ end
 tCntGenAssGty(pMetaGty::Vector{Tmgty},G::TG,gbounds::TG,aPmut::Vector{Float64}) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
 	tCntGenAssGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,gbounds,aPmut,[0.0,0.0,0.0])
 
-function Base.copy!(gtyDst::Tgty,gtySrc::Tgty) where {Tgty<:atGenotype}
+function Base.copy!(gtyDst::Tgty,gtySrc::Tgty) where {Tgty<:AbstractGenotype}
 	gtyDst.G .= gtySrc.G
 	gtyDst.aF .= gtySrc.aF
 end
 
-export tPntGty, tAddGty, tMltGty, tAlphaGty, tCntGty
+export tAddGty, tMltGty, tAlphaGty, tCntGty
 
 # -------------------
 #   EVOTYPES
 # -------------------
-
-# evotype with predetermined mutation transitions structure
-struct tPntEty{T<:Graph} <: atGtyMutEty
-	pRepFactor::Vector{Float64}
-	minRepCoef::Float64
-	G::T
-end
 
 # type: discretized time evotype
 struct tDscdtEty <: atGtyMutEty
@@ -217,7 +151,7 @@ struct tDscdtEty <: atGtyMutEty
 end
 
 # costructor. tDscdtEty
-tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::atGenotype) =
+tDscdtEty(repRate::Float64,mutRate::Float64,ΔtOffset::Float64,gty::AbstractGenotype) =
 	tDscdtEty( repRate,mutRate,ΔtOffset,[repRate/(2gty.pMetaGty[1].dG*mutRate+ΔtOffset)],[mutRate/(2gty.pMetaGty[1].dG*mutRate+ΔtOffset)] )
 
 # costructor. tDscdtEty
@@ -241,7 +175,7 @@ tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutM
 tPntMutEty(repFactor::Float64,pntMutFactor::Float64,adG::Vector{<:Integer},NmutMax::Integer,minRepCoef::Float64) = tPntMutEty([repFactor],[pntMutFactor],
 	Dict( dG => [ binomial(BigInt(dG),n)*(pntMutFactor^n)*(1-pntMutFactor)^(dG-n) for n in 1:NmutMax ] for dG in adG), minRepCoef)
 
-export tPntEty, tDscdtEty, tPntMutEty
+export tDscdtEty, tPntMutEty
 
 # -------------------
 #   METAGENOTYPES
@@ -295,27 +229,8 @@ export tIsingSigTransMetaGty, tDisChnMetaGty
 #   POPULATION and DATA
 # -------------------
 
-# type: population
-struct tPntPop{Tety<:atEvotype,Tenv<:atEnvironment,TaG<:Vector{<:atGenotype}} <: atPopulation
-	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
-	ety::Tety
-	env::Tenv
-	aGty::TaG
-end
-
-# type: population
-struct tEvoPop{Tety<:atEvotype,Tenv<:atEnvironment,Tamgty<:Vector{<:atMetaGenotype},TaG<:Vector{<:atGenotype}} <: atPopulation
-	pN::Vector{Int32}		# population number: effective population, fixed population value, array size
-	ety::Tety
-	env::Tenv
-	aMetaGty::Tamgty
-	aGty::TaG
-end
-
-export tPntPop, tEvoPop
-
 # type: evolutionary dynamics data
-struct tEvoData
+struct tEvoData <: AbstractEvolutionData
 	Ngen::Int32
 	avePerformance::Array{Float64,1}
 	growthFactor::Array{Float64,1}
@@ -341,15 +256,6 @@ tEvoData(Ngen::Int32,aveFtinc::Float64,minF::Float64) = tEvoData(
 	[0.0], aveFtinc, [minF],
 	Array{Int32}(undef,0), Array{tEvoPop}(undef,0)
 )
-
-struct EvoData
-	Ngen::Int32
-	avePerformance::Array{Float64,1}
-	growthFactor::Array{Float64,1}
-	mutationFactor::Array{Float64,1}
-end
-
-EvoData(Ngen::Integer) = EvoData( Int32(Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen) )
 
 # type: flux pattern
 struct tFluxPattern
@@ -391,7 +297,7 @@ struct tStat{Tave<:Vector{<:Number},Tcov<:Array{<:Number}}
 	cor::Tcov
 end
 
-tStat(gty::atGenotype) = tStat(
+tStat(gty::AbstractGenotype) = tStat(
 	Array{typeof(gty.G[1])}(undef,length(gty)),
 	Array{typeof(gty.G[1])}(undef,length(gty),length(gty)),
 	Array{typeof(gty.G[1])}(undef,length(gty),length(gty))
@@ -401,12 +307,21 @@ tStat(Nv::Integer) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv
 
 export EvoData, tEvoData, tFluxPattern, tCrntPattern, tStat
 
-# *******************
-# TRIVIAL STUFF
-# *******************
+# ==========
+#  METHODS
 
-struct tTrivialEty <: atEvotype end
+function mutation!(gty::tAddGty,i::Integer)
+	gty.G[ i % length(gty) + 1 ] += i % 2 == 0 ? gty.Δg : -gty.Δg
+end
 
-export tTrivialEty
+function mutation!(gty::tMltGty,i::Integer)
+	gty.G[ i % length(gty) + 1 ] *= i % 2 == 0 ? gty.δg : 1.0/gty.δg
+end
 
+function mutation!(gty::tAlphaGty,i::Integer)
+	gty.G[i] = rand(THREADRNG[threadid()], filter( e -> e != gty.G[i], gty.g ))
+end
+
+function mutation!(gty::tCntGty,i::Integer)
+	gty.G[i] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
 end
