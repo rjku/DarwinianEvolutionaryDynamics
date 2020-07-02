@@ -67,7 +67,7 @@ struct EvoData <: AbstractEvolutionData
 end
 	EvoData(Ngen::Integer) = EvoData( Int32(Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen) )
 
-struct VarData <: AbstractEvolutionData
+struct TrajectoryData <: AbstractEvolutionData
 	NgenRelax::Int32
 	NgenSample::Int32
 
@@ -75,13 +75,18 @@ struct VarData <: AbstractEvolutionData
 	growthFactor::Array{Float64,1}
 	mutationFactor::Array{Float64,1}
 
+	pop::Population
 	pGty::Vector{TabularGenotype{Vector{Int32}}}
 	fluxMatrix::Matrix{Int32}
-end
-	VarData(NgenRelax::Integer,NgenSample::Integer,dimG::Integer) = VarData( Int32(NgenRelax), Int32(NgenSample), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen), Array{Float64}(undef,Ngen),
- 		Array{TabularGenotype{Vector{Int32}}}(undef,1), zeros(Int32,dimG,dimG) )
 
-export EvoData, VarData
+	envState::Array{Int32,1}
+end
+	TrajectoryData(pop::Population,NgenRelax::Integer,NgenSample::Integer,dimG::Integer) = TrajectoryData( Int32(NgenRelax), Int32(NgenSample),
+		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample),
+		pop, Array{TabularGenotype{Vector{Int32}}}(undef,1), zeros(Int32,dimG,dimG), Array{Int32}(undef,NgenSample)
+	)
+
+export EvoData, TrajectoryData
 
 
 # =========
@@ -97,12 +102,13 @@ const THREADRNG = let m = MersenneTwister(1)
 
 function init_Population( N::Int32,ety::Tety,env::Tenv,aGty::Vector{TG} ) where { Tety<:AbstractEvotype,Tenv<:AbstractTabularEnvironment,TG<:AbstractGenotype }
 	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N must be > length(aGty)"))
-	@threads for i in 1:N fitness!(aGty[i],env) end
+	# @threads
+	for i in 1:N fitness!(aGty[i],env) end
 	return Population{Tety,Tenv,Vector{TG}}( Int32[N,N,length(aGty)],ety,env,aGty )
 end
 
 function fitness!(gty::AbstractGenotype,env::AbstractTabularEnvironment)
-	gty.aF .= [ env.fTb[1][gty.G[1]], exp(env.fTb[1][gty.G[1]]*env.aSelCoef[1]), exp(env.fTb[1][gty.G[1]]*env.aSelCoef[2]) ]
+	gty.aF .= [ env.fTb[env.e[1]][gty.G[1]], exp(env.fTb[env.e[1]][gty.G[1]]*env.aSelCoef[1]), exp(env.fTb[env.e[1]][gty.G[1]]*env.aSelCoef[2]) ]
 end
 
 # -----------
@@ -126,8 +132,8 @@ end
 
 function mutation!(gty::TabularGenotype,ety::VaryingTabularEvotypeI,env::AbstractTabularEnvironment)
 	aAdjV, aMutProb = neighbors(ety.G, gty.G[1])
-	ρhat = 1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2]
-	aMutProb .= ( aMutProb .* [ i == gty.G[2] ? ety.λM : 1.0 for i in eachindex(aMutProb) ] ) / ρhat
+	sqrtρhat = sqrt( 1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2] )
+	aMutProb .= ( aMutProb .* [ i == gty.G[2] ? ety.λM : 1.0 for i in eachindex(aMutProb) ] ) / sqrtρhat
 
 	Nmut::Int32 = 0
 
@@ -142,12 +148,8 @@ function mutation!(gty::TabularGenotype,ety::VaryingTabularEvotypeI,env::Abstrac
 
 	# mutation boost direction
 	r = rand(THREADRNG[threadid()])
-	if r <= ety.mutCoef    # <----- check for the presence of rhat
-		if Nmut == 1
-			aAdjV, aMutProb = neighbors(ety.G, gty.G[1])
-		end
-		i = draw( [ ety.mutCoef/(length(aAdjV)+1) for i in 0:length(aAdjV) ], r ) - 1
-		gty.G[2] = typeof(gty.G[2])(i)
+	if r <= ety.mutCoef / sqrtρhat
+		gty.G[2] = typeof(gty.G[2])(rand(0:4))		# <--- you are assuming the square grid!
 		Nmut += 1
 	end
 
@@ -155,7 +157,8 @@ function mutation!(gty::TabularGenotype,ety::VaryingTabularEvotypeI,env::Abstrac
 end
 
 function evolveEnvironment!(env::VaryingTabularEnvironment,aGty::Vector{<:AbstractGenotype})
-	i = draw( env.W[:,env.e[1]], rand(THREADRNG[threadid()]) )
+	d = Categorical( env.W[:,env.e[1]] )
+	i = rand(THREADRNG[threadid()], d)
 
 	if env.e[1] != i
 		env.e[1] = i
@@ -175,15 +178,16 @@ function gmsEvoStep!(pop::Population{<:AbstractEvotype,<:VaryingTabularEnvironme
 	return gf, Nmut #, ancestry
 end
 
-function evolve!(pop::AbstractPopulation,traj::VarData)
-	for gen in 1:data.NgenRelax
-		gmsEvoStep!(pop)
+function evolve!(traj::TrajectoryData)
+	for gen in 1:traj.NgenRelax
+		gmsEvoStep!(traj.pop)
 	end
-	for gen in 1:data.NgenSample
+	for gen in 1:traj.NgenSample
 		# copy initial population
 
-		traj.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
-		traj.growthFactor[gen], traj.mutationFactor[gen] = gmsEvoStep!(pop)
+		traj.growthFactor[gen], traj.mutationFactor[gen] = gmsEvoStep!(traj.pop)
+		traj.envState[gen] = traj.pop.env.e[1]
+		traj.avePerformance[gen] = mean( [traj.pop.aGty[i].aF[1] for i in 1:traj.pop.pN[2]] )
 
 		# feed J with one transition
 	end
@@ -192,19 +196,20 @@ end
 function generateVaryingTabularSystemsITrajectories(
 		repFactor,minRepCoef,mutCoef,λM,G::AbstractGraph,
 		aFtb,repStrength,selStrength,transitionMatrix,
-		Npop::Integer,
-		NgenRelax::Integer,
-		NgenSample::Integer
+		Npop::Integer,NgenRelax::Integer,NgenSample::Integer
 	)
 
 	ety = mEvoTypes.VaryingTabularEvotypeI([Float64(repFactor)],Float64(minRepCoef),Float64(mutCoef),Float64(λM),G)
 	env = mEvoTypes.VaryingTabularEnvironment(aFtb,[repStrength,selStrength],transitionMatrix)
-	aGty = [ mEvoTypes.TabularGenotype( [rand( 1:G.Nv),0] ) for i in 1:Npop ];
-	pop = mEvoTypes.init_Population( Int32(Npop),ety,env,aGty );
-	traj = VarData(NgenRelax,NgenSample,5G.Nv)  # <----- here you are assuming that you deal with a square grid
+	aGty = [ mEvoTypes.TabularGenotype( Int32[rand( 1:G.Nv ),0] ) for i in 1:Npop ];
 
-	evolve!(pop,traj)
+	#  assuming that you deal with a square grid
+	traj = TrajectoryData( mEvoTypes.init_Population( Int32(Npop), ety, env, aGty ), NgenRelax, NgenSample, 5G.Nv )
+	evolve!(traj)
 
-	traj.pGty[1] = pop.aGty[rand(THREADRNG[threadid()],1:pop.pN[2])]
-	return varData
+	# traj.pGty[1] = traj.pop.aGty[rand(THREADRNG[threadid()],1:traj.pop.pN[2])]
+
+	return traj
 end
+
+export generateVaryingTabularSystemsITrajectories

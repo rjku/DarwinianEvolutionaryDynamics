@@ -35,9 +35,6 @@ function mutation!(pop::AbstractPopulation)
 	return sum(aNmut)/pop.pN[2] 	# normalized number of mutations
 end
 
-
-import Distributions.Categorical
-
 function selection!(pop::AbstractPopulation,elite::Bool=false)
 	popGtyRef::Array{AbstractGenotype,1} = copy(pop.aGty)
 

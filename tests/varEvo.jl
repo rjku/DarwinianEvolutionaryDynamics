@@ -23,41 +23,135 @@ Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
 # +
 # evolution and population constants
-const NGEN, NPOP, NPOPNICHE = Int32(3*10^3), Int32(10^4), Int32(5)
-const REPFACTOR, MUTFACTOR = 0.0, 0.1
+const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^3), Int32(10^4), Int32(10^3)
+const NSAMPLES = 1
+const REPFACTOR, MUTFACTOR = 0.0, 0.01
+const λM = 10.0
 
 # genotypic variables
-GRIDSIZE = 5
+GRIDSIZE = 12
 DIMGSPACE = GRIDSIZE^2
-BLOCKSIZE = GRIDSIZE÷3
+BLOCKSIZE = GRIDSIZE÷4
 
 # environmental constants
-const REPSTRENGTH, SELSTRENGTH, MINREPCOEF = 0.0, 0.8, 1.0
-const HF, MF, LF = 10.0, 1.0, 0.1;
+const REPSTRENGTH, SELSTRENGTH, MINREPCOEF = 0.0, 10.0, 1.0
+const NENV = 3
+const HF, MF, LF = 0.5, 0.3, 0.1;
+
+# display( [ exp(SELSTRENGTH*i) for i in [HF, MF, LF] ] )
+
+aEnvTransRate = [ 0.1, 0.01, 0.001 ]
+
+grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE,[ MUTFACTOR for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
+
+W = Vector{Matrix{Float64}}(undef,NENV)
+for (i,w) in enumerate(aEnvTransRate)
+    W[i] = [ [ 1.0 - w, w, 0.0 ] [ 0.0, 1.0 - w, w ] [ w, 0.0, 1.0 - w ] ]
+end
 # -
 
 # ### Potential Shaping
 
-f = [ LF for i in 1:DIMGSPACE ]
-for i in eachindex(f)
+# +
+afTb = [ [ LF for i in 1:DIMGSPACE ] for i in 1:NENV ]
+
+for i in eachindex(afTb[1])
     # top left block
     if (i-1)÷GRIDSIZE < BLOCKSIZE && (i-1)%GRIDSIZE < BLOCKSIZE
-        f[i] = HF
+        afTb[1][i] = HF
     end
 end
 
+for i in eachindex(afTb[2])
+    # top right block
+    if (i-1)÷GRIDSIZE >= GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE < BLOCKSIZE
+        afTb[2][i] = HF
+    end
+end
+
+for i in eachindex(afTb[3])
+    # top bottom center block
+    if GRIDSIZE÷2 - 1 <= (i-1)÷GRIDSIZE <= GRIDSIZE÷2 + 1 && (i-1)%GRIDSIZE > GRIDSIZE - BLOCKSIZE - 1
+        afTb[3][i] = HF
+    end
+end
+
+gf = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, afTb[3] )
+fMat = mGraphs.matrixForm(gf);
+
+imshow(fMat,cmap="viridis",origin="lower");
+
 # +
-grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE,[ MUTFACTOR for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
+aTraj = Vector{mEvoTypes.TrajectoryData}(undef,NSAMPLES)
 
-W = [ 0.5 for i in 1:2, j in 1:2]
-env = mEvoTypes.VaryingTabularEnvironment([f,f],[REPSTRENGTH, SELSTRENGTH],W)
-ety = mEvoTypes.VaryingTabularEvotypeI([REPFACTOR],MINREPCOEF,MUTFACTOR,10MUTFACTOR,grid);
-aGty = [ mEvoTypes.TabularGenotype( [rand( 1:GRIDSIZE^2),0] ) for i in 1:NPOP ];
-pop = mEvoTypes.init_Population( NPOP,ety,env,aGty );
+@time for i in 1:NSAMPLES
+    aTraj[i] = mEvoTypes.generateVaryingTabularSystemsITrajectories(
+            REPFACTOR, MINREPCOEF, MUTFACTOR, λM, grid,
+            afTb, REPSTRENGTH, SELSTRENGTH, W[3],
+            NPOP, NGENRELAX, NGENSAMPLE
+        );
+end
 
-mEvoTypes.gmsEvoStep!(pop)
+# +
+i = rand(1:NSAMPLES)
 
-VarData(NGEN,2NGEN,5DIMGSPACE)
+subplots(3,1,figsize=(7.5,7.5))
+subplot(311); title("Average Performance: Loss");
+    plot( aTraj[i].avePerformance );
+subplot(312); title("Environmental State");
+    plot( aTraj[i].envState );
+subplot(313); title("Mutation Factor");
+    plot( aTraj[i].mutationFactor );
+tight_layout();
+
+# +
+L = 5
+N = 10
+
+aPG1 = [ rand() for i in 1:L^2 ]
+aPG2 = [ rand(4) for i in 1:L^2 ]
+
+
+Y(i,L) = (i-1)%GRIDSIZE + 1
+X(i,L) = (i-1)÷GRIDSIZE + 1
+
+function arrowPlot(L,Wv,We)
+    d = Dict( 0 => [0,0], 1 => [0,-1], 2 => [-1,0], 3 => [0,1], 4 => [1,0] )
+    o = Dict( 0 => [0,0], 1 => [-1,0], 2 => [0,1], 3 => [1,0], 4 => [0,-1] )
+    
+    dx = 0.1
+    dy = 0.06
+    ℓ = 1.0 - 3dx
+
+    V = [ [X(i,L),Y(i,L)] for i in 1:L^2 ]
+
+    fig = figure(figsize=(7,7))
+    for (i,v) in enumerate(V)
+        for (j,p) in enumerate(We[i])
+            if p > 0
+                arrow( (v + dx*d[ j ] + dy*o[ j ])..., ℓ*d[ j ]...,
+                    head_length=dx, width= 0.05*p, ec="tab:blue",fc="tab:blue")
+            end
+        end
+
+        scatter([v[1]], [v[2]], s=[(30 * Wv[i])^2], cmap="cividis", c=10*[Wv[i]], alpha=0.5)
+    end
+
+    xticks(collect(1:L))
+    yticks(collect(L:-1:1),collect(1:L))
+end
+
+# +
+# aGty = [ traj.pGty[1] for traj in aTraj ]
+
+P, B = mEvoTypes.popStatisticsVaryingTabularI(aTraj[1].pop.aGty,grid)
+
+p = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, P )
+pMat = mGraphs.matrixForm(p);
+imshow(log.(pMat),cmap="cividis",vmax=0,origin="lower");
+colorbar()
+
+arrowPlot(GRIDSIZE, P, B )
 
 # +
 aS = [ exp(f[g]*env.aSelCoef[2]) for g in 1:DIMGSPACE ]
@@ -66,7 +160,7 @@ apS = aS ./ sum(aS)
 aP = ( ( Array(mGraphs.transitionMatrix(ety.G)) .+ Diagonal([ 1.0 + MINREPCOEF for i in 1:DIMGSPACE ]) ) * aS ) .* aS
 apP = aP ./ sum(aP)
 
-gf = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, f )
+gf = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, afTb[1] )
 fMat = mGraphs.matrixForm(gf);
 
 gpS = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, apS )
@@ -79,7 +173,7 @@ pPMat = mGraphs.matrixForm(gpP);
 subplots(1,3,figsize=(15,7))
 subplot(131); title("Bare Fitness Function"); imshow(fMat,cmap="viridis");
 subplot(132); title("Selectivity"); imshow(log.(pSMat),cmap="cividis",vmax=0);
-subplot(133); title("Evolutionary Potential"); imshow(log.(pPMat),cmap="cividis",vmax=0);
+subplot(133); title("Evolutionary Potential"); 
 
 subplots(1,3,figsize=(15,7))
 subplot(131); title("Bare Fitness Function"); imshow(fMat,cmap="viridis");
@@ -89,25 +183,6 @@ subplot(133); title("Evolutionary Potential"); imshow(pPMat,cmap="cividis",vmax=
 # ### Population Dynamics
 
 # genotypic types
-
-# +
-
-evoData = EvoData(NGEN);
-
-mEvoFunc.gmsNicOneED!(pop,evoData,elite=false);
-# -
-
-subplots(3,1,figsize=(7.5,7.5))
-subplot(311); title("Average Performance: Loss");
-    plot( evoData.avePerformance );
-subplot(312); title("Growth Factor");
-    plot( evoData.growthFactor );
-subplot(313); title("Mutation Factor");
-    plot( evoData.mutationFactor );
-tight_layout();
-
-p = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, mEvoFunc.popStatistics(pop) )
-pMat = mGraphs.matrixForm(p);
 
 subplots(1,3,figsize=(15,7))
 subplot(131); title("Population Distribution"); imshow(log.(pMat),cmap="cividis",vmax=0); colorbar(shrink=0.5)
@@ -185,9 +260,6 @@ for β in selStrengthVals, μ in mutFactorVals
 
     mEvoFunc.gmsNicOneED!(aPop[end],aEvoData[end],elite=false);
 end
-# -
-
-[ 10^(i-1) for i in 3/4:1/4:1 ]
 
 # +
 aPop[3].aGty .= aPop[6].aGty;
@@ -240,4 +312,3 @@ for pop in aPop
 #     subplot(132); title("Selectivity"); imshow(pSMat,cmap="cividis",vmax=.15,vmin=0);
 #     subplot(133); title("Evolutionary Potential"); imshow(pPMat,cmap="cividis",vmax=.15,vmin=0);
 end
-# -

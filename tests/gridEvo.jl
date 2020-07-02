@@ -57,7 +57,7 @@ for i in eachindex(f)
         f[i] = HF
     end
     
-    # bottom left point
+    # bottom left line
     if GRIDSIZE - BLOCKSIZE <= (i-1)÷GRIDSIZE <= GRIDSIZE - BLOCKSIZE + 1 && (i-1)%GRIDSIZE == BLOCKSIZE - 1
         f[i] = HF
     end

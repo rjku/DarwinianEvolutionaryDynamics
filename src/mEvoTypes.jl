@@ -1,7 +1,9 @@
 
 module mEvoTypes
 
-using mUtils
+using mUtils, Random
+import Distributions.Categorical
+import Statistics.mean
 
 # ===================
 # environmental types
@@ -58,5 +60,7 @@ include("EvolvingSystems.jl")
 include("TabularSystems.jl")
 
 include("EDComponents.jl")
+
+include("EDAnalysis.jl")
 
 end

@@ -699,15 +699,6 @@ export tDisChnMetaGty, response
 # | STATISTICS FUNCTIONS  \
 # *************************
 
-function popStatistics(pop::Population)
-	aG = [ pop.aGty[i].G[1] for i in 1:pop.pN[2] ]
-	p = zeros( pop.ety.G.Nv )
-	for g in aG
-		p[g] += 1
-	end
-	return p/pop.pN[2]
-end
-
 function getGStat(pop::tEvoPop)
 	# throw error if genomes have different sizes
 	mapreduce( x -> x == length(pop.aGty[1]), &, [ length(pop.aGty[i]) for i in 2:pop.pN[2] ] ) ||
