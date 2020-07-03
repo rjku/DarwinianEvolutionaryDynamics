@@ -15,38 +15,39 @@
 # ---
 
 # +
-using Revise, BenchmarkTools, PyPlot, Distances, Printf
-using Statistics, LinearAlgebra
+using Revise, BenchmarkTools, PyPlot, Printf
+# using Distances, Statistics, LinearAlgebra
 import mEvoTypes, mUtils, mGraphs
 
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
 # +
 # evolution and population constants
-const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^3), Int32(10^4), Int32(10^3)
+const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^3), Int32(10^2), Int32(10^3)
 const NSAMPLES = 1
 const REPFACTOR, MUTFACTOR = 0.0, 0.01
 const λM = 10.0
 
 # genotypic variables
-GRIDSIZE = 12
+GRIDSIZE = 11
 DIMGSPACE = GRIDSIZE^2
-BLOCKSIZE = GRIDSIZE÷4
+BLOCKSIZE = GRIDSIZE÷3
 
 # environmental constants
-const REPSTRENGTH, SELSTRENGTH, MINREPCOEF = 0.0, 10.0, 1.0
+const REPSTRENGTH, SELSTRENGTH, MINREPCOEF = 0.0, 1.0, 1.0
 const NENV = 3
-const HF, MF, LF = 0.5, 0.3, 0.1;
+const LF, MF, HF = 1.0, 3.0, 5.0;
 
-# display( [ exp(SELSTRENGTH*i) for i in [HF, MF, LF] ] )
+# display( [ exp(SELSTRENGTH*i) for i in [LF, MF, HF] ] )
 
-aEnvTransRate = [ 0.1, 0.01, 0.001 ]
+aEnvTransRate = [ 0.001, 0.01,  0.1 ]
+aSelStrength = [ 0.1, 1.0, 10.0 ]
 
 grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE,[ MUTFACTOR for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
 
-W = Vector{Matrix{Float64}}(undef,NENV)
+aW = Vector{Matrix{Float64}}(undef,NENV)
 for (i,w) in enumerate(aEnvTransRate)
-    W[i] = [ [ 1.0 - w, w, 0.0 ] [ 0.0, 1.0 - w, w ] [ w, 0.0, 1.0 - w ] ]
+    aW[i] = [ [ 1.0 - w, w, 0.0 ] [ 0.0, 1.0 - w, w ] [ w, 0.0, 1.0 - w ] ]
 end
 # -
 
@@ -82,76 +83,77 @@ fMat = mGraphs.matrixForm(gf);
 imshow(fMat,cmap="viridis",origin="lower");
 
 # +
-aTraj = Vector{mEvoTypes.TrajectoryData}(undef,NSAMPLES)
+aTraj = mEvoTypes.TrajectoryData[]
 
-@time for i in 1:NSAMPLES
-    aTraj[i] = mEvoTypes.generateVaryingTabularSystemsITrajectories(
-            REPFACTOR, MINREPCOEF, MUTFACTOR, λM, grid,
-            afTb, REPSTRENGTH, SELSTRENGTH, W[3],
-            NPOP, NGENRELAX, NGENSAMPLE
-        );
+for W in aW, β in aSelStrength
+    @time for i in 1:NSAMPLES
+        traj = mEvoTypes.generateVaryingTabularSystemsITrajectories(
+                REPFACTOR, MINREPCOEF, MUTFACTOR, λM, grid,
+                afTb, REPSTRENGTH, β, W, NPOP, NGENRELAX, NGENSAMPLE
+            )
+        push!(aTraj, traj)
+    end
 end
 
 # +
-i = rand(1:NSAMPLES)
+i = 2
 
 subplots(3,1,figsize=(7.5,7.5))
-subplot(311); title("Average Performance: Loss");
+subplot(311); title("Average Fitness");
     plot( aTraj[i].avePerformance );
 subplot(312); title("Environmental State");
     plot( aTraj[i].envState );
 subplot(313); title("Mutation Factor");
     plot( aTraj[i].mutationFactor );
 tight_layout();
+# -
+
+Pgty = [ sum( aTraj[i].jointProb[g,:,:,:] ) for g in 1:size(aTraj[i].jointProb)[1] ] / aTraj[i].NgenSample
+Pgty1 = [ sum( [ Pgty[ g1 + grid.Nv * g2 ] for g2 in 0:4 ] ) for g1 in 1:grid.Nv ]
+Bgty1 = [ [ Pgty[ g1 + grid.Nv * g2 ] for g2 in 1:4 ] / Pgty1[g1] for g1 in 1:grid.Nv ];
 
 # +
-L = 5
-N = 10
+p = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, Pgty1 )
+pMat = mGraphs.matrixForm(p);
+imshow(log.(pMat),cmap="cividis",vmax=0,origin="lower");
+colorbar()
 
-aPG1 = [ rand() for i in 1:L^2 ]
-aPG2 = [ rand(4) for i in 1:L^2 ]
+arrowPlot(GRIDSIZE, Pgty1, Bgty1, fsize=10, s0=100 )
+title("log10(w) = $( log10( aW[(i-1)÷3 + 1][2] ) ), β = $( aSelStrength[(i-1)%3 + 1] )")
 
+# +
+P = aTraj[i].jointProb / aTraj[i].NgenSample
 
-Y(i,L) = (i-1)%GRIDSIZE + 1
-X(i,L) = (i-1)÷GRIDSIZE + 1
+# mUtils.ReLog( ( sum(P, dims=[3,4])  .* sum(P, dims=[1,2,4]) ) ./ ( sum(P, dims=[1,4])  .* sum(P, dims=[2,3,4]) ) )
 
-function arrowPlot(L,Wv,We)
+sum( sum(P, dims=4) .* mUtils.ReLog( ( sum(P, dims=[3,4])  .* sum(P, dims=[1,2,4]) ) ./ ( sum(P, dims=[1,4])  .* sum(P, dims=[2,3,4]) ) ) ) 
+# -
+
+merged = +(aTraj[1], aTraj[2])
+
+function arrowPlot(L, Wv, We; dx=0.1, dy=0.06, w=0.05, fsize=7, s0=30)
     d = Dict( 0 => [0,0], 1 => [0,-1], 2 => [-1,0], 3 => [0,1], 4 => [1,0] )
     o = Dict( 0 => [0,0], 1 => [-1,0], 2 => [0,1], 3 => [1,0], 4 => [0,-1] )
     
-    dx = 0.1
-    dy = 0.06
     ℓ = 1.0 - 3dx
 
-    V = [ [X(i,L),Y(i,L)] for i in 1:L^2 ]
+    V = [ [ (i-1)÷GRIDSIZE + 1, (i-1)%GRIDSIZE + 1 ] for i in 1:L^2 ]
 
-    fig = figure(figsize=(7,7))
+    fig = figure(figsize=(fsize,fsize))
     for (i,v) in enumerate(V)
         for (j,p) in enumerate(We[i])
             if p > 0
                 arrow( (v + dx*d[ j ] + dy*o[ j ])..., ℓ*d[ j ]...,
-                    head_length=dx, width= 0.05*p, ec="tab:blue",fc="tab:blue")
+                    head_length=dx, width=w*p, ec="tab:blue",fc="tab:blue")
             end
         end
 
-        scatter([v[1]], [v[2]], s=[(30 * Wv[i])^2], cmap="cividis", c=10*[Wv[i]], alpha=0.5)
+        scatter([v[1]], [v[2]], s=[(s0 * Wv[i])^2], cmap="cividis", c=10*[Wv[i]], alpha=0.5)
     end
 
     xticks(collect(1:L))
     yticks(collect(L:-1:1),collect(1:L))
 end
-
-# +
-# aGty = [ traj.pGty[1] for traj in aTraj ]
-
-P, B = mEvoTypes.popStatisticsVaryingTabularI(aTraj[1].pop.aGty,grid)
-
-p = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, P )
-pMat = mGraphs.matrixForm(p);
-imshow(log.(pMat),cmap="cividis",vmax=0,origin="lower");
-colorbar()
-
-arrowPlot(GRIDSIZE, P, B )
 
 # +
 aS = [ exp(f[g]*env.aSelCoef[2]) for g in 1:DIMGSPACE ]

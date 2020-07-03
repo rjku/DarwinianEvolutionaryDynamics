@@ -69,22 +69,25 @@ end
 
 struct TrajectoryData <: AbstractEvolutionData
 	NgenRelax::Int32
-	NgenSample::Int32
+	NgenSample::Int64
 
 	avePerformance::Array{Float64,1}
 	growthFactor::Array{Float64,1}
 	mutationFactor::Array{Float64,1}
-
-	pop::Population
-	pGty::Vector{TabularGenotype{Vector{Int32}}}
-	fluxMatrix::Matrix{Int32}
-
 	envState::Array{Int32,1}
+
+	jointProb::Array{Int64,4}
 end
-	TrajectoryData(pop::Population,NgenRelax::Integer,NgenSample::Integer,dimG::Integer) = TrajectoryData( Int32(NgenRelax), Int32(NgenSample),
-		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample),
-		pop, Array{TabularGenotype{Vector{Int32}}}(undef,1), zeros(Int32,dimG,dimG), Array{Int32}(undef,NgenSample)
+	TrajectoryData(NgenRelax::Integer,NgenSample::Integer,cardG::Integer,cardE::Integer) = TrajectoryData( Int32(NgenRelax), Int64(NgenSample),
+		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Int32}(undef,NgenSample),
+		zeros(Int64,cardG,cardE,cardG,cardE)
 	)
+
+import Base: +
+
++(trj1::TrajectoryData,trj2::TrajectoryData) = TrajectoryData(
+	trj1.NgenRelax, trj1.NgenSample + trj2.NgenSample, trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor, trj1.envState, trj1.jointProb .+ trj2.jointProb
+)
 
 export EvoData, TrajectoryData
 
@@ -169,45 +172,57 @@ function evolveEnvironment!(env::VaryingTabularEnvironment,aGty::Vector{<:Abstra
 	end
 end
 
-function gmsEvoStep!(pop::Population{<:AbstractEvotype,<:VaryingTabularEnvironment,<:Vector{<:AbstractGenotype}},elite::Bool=false)
+function gmsEvoStep!(pop::Population{<:AbstractEvotype,<:VaryingTabularEnvironment,<:Vector{<:AbstractGenotype}}, elite::Bool=false)
 	evolveEnvironment!(pop.env,pop.aGty)
 	gf = replication!(pop)
 	Nmut = mutation!(pop)
 	selection!(pop,elite)
 
-	return gf, Nmut #, ancestry
+	return gf, Nmut
 end
 
-function evolve!(traj::TrajectoryData)
+function gmsEvoStep!(pop::Population{<:AbstractEvotype,<:VaryingTabularEnvironment,<:Vector{<:AbstractGenotype}}, ancestry)
+	evolveEnvironment!(pop.env,pop.aGty)
+	gf = replication!(pop, ancestry)
+	Nmut = mutation!(pop)
+	iGtySelected = selection!(pop)
+
+	return gf, Nmut, ancestry[iGtySelected]
+end
+
+coord(gty::TabularGenotype, cardGty1::Integer) = gty.G[1] + cardGty1 * gty.G[2]
+
+function evolve!(pop::AbstractPopulation,traj::TrajectoryData)
 	for gen in 1:traj.NgenRelax
-		gmsEvoStep!(traj.pop)
+		gmsEvoStep!(pop)
 	end
+
+	ancestry = [ i for i in 1:length(pop.aGty) ]
+
 	for gen in 1:traj.NgenSample
-		# copy initial population
+		aGtyPast = deepcopy(pop.aGty)
+		envStatePast = pop.env.e[1]
 
-		traj.growthFactor[gen], traj.mutationFactor[gen] = gmsEvoStep!(traj.pop)
-		traj.envState[gen] = traj.pop.env.e[1]
-		traj.avePerformance[gen] = mean( [traj.pop.aGty[i].aF[1] for i in 1:traj.pop.pN[2]] )
+		traj.growthFactor[gen], traj.mutationFactor[gen], iGtyPast = gmsEvoStep!(pop, ancestry)
+		traj.envState[gen] = pop.env.e[1]
+		traj.avePerformance[gen] = mean( [pop.aGty[i].aF[1] for i in 1:pop.pN[2]] )
 
-		# feed J with one transition
+		traj.jointProb[ coord(pop.aGty[1], pop.ety.G.Nv), traj.envState[gen], coord(aGtyPast[iGtyPast], pop.ety.G.Nv), envStatePast ] += 1
 	end
 end
 
 function generateVaryingTabularSystemsITrajectories(
-		repFactor,minRepCoef,mutCoef,λM,G::AbstractGraph,
-		aFtb,repStrength,selStrength,transitionMatrix,
-		Npop::Integer,NgenRelax::Integer,NgenSample::Integer
+		repFactor, minRepCoef, mutCoef, λM, G::AbstractGraph, aFtb, repStrength, selStrength, transitionMatrix, Npop::Integer, NgenRelax::Integer, NgenSample::Integer
 	)
 
-	ety = mEvoTypes.VaryingTabularEvotypeI([Float64(repFactor)],Float64(minRepCoef),Float64(mutCoef),Float64(λM),G)
-	env = mEvoTypes.VaryingTabularEnvironment(aFtb,[repStrength,selStrength],transitionMatrix)
+	ety = mEvoTypes.VaryingTabularEvotypeI([Float64(repFactor)], Float64(minRepCoef), Float64(mutCoef), Float64(λM), G)
+	env = mEvoTypes.VaryingTabularEnvironment(aFtb, [repStrength,selStrength], transitionMatrix)
 	aGty = [ mEvoTypes.TabularGenotype( Int32[rand( 1:G.Nv ),0] ) for i in 1:Npop ];
+	pop = mEvoTypes.init_Population( Int32(Npop), ety, env, aGty )
 
 	#  assuming that you deal with a square grid
-	traj = TrajectoryData( mEvoTypes.init_Population( Int32(Npop), ety, env, aGty ), NgenRelax, NgenSample, 5G.Nv )
-	evolve!(traj)
-
-	# traj.pGty[1] = traj.pop.aGty[rand(THREADRNG[threadid()],1:traj.pop.pN[2])]
+	traj = TrajectoryData( NgenRelax, NgenSample, 5G.Nv, length(aFtb) )
+	evolve!(pop, traj)
 
 	return traj
 end
