@@ -17,19 +17,19 @@
 # +
 using Revise, BenchmarkTools, PyPlot, Printf
 # using Distances, Statistics, LinearAlgebra
-import mEvoTypes, mUtils, mGraphs
+import mEvoTypes, mUtils, mGraphs, mPlot
 
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
 # +
 # evolution and population constants
-const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^3), Int32(10^2), Int32(10^3)
+const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^3), Int32(10^4), Int32(10^3)
 const NSAMPLES = 1
 const REPFACTOR, MUTFACTOR = 0.0, 0.01
 const λM = 10.0
 
 # genotypic variables
-GRIDSIZE = 11
+GRIDSIZE = 3
 DIMGSPACE = GRIDSIZE^2
 BLOCKSIZE = GRIDSIZE÷3
 
@@ -96,7 +96,7 @@ for W in aW, β in aSelStrength
 end
 
 # +
-i = 2
+i = 8
 
 subplots(3,1,figsize=(7.5,7.5))
 subplot(311); title("Average Fitness");
@@ -112,13 +112,12 @@ Pgty = [ sum( aTraj[i].jointProb[g,:,:,:] ) for g in 1:size(aTraj[i].jointProb)[
 Pgty1 = [ sum( [ Pgty[ g1 + grid.Nv * g2 ] for g2 in 0:4 ] ) for g1 in 1:grid.Nv ]
 Bgty1 = [ [ Pgty[ g1 + grid.Nv * g2 ] for g2 in 1:4 ] / Pgty1[g1] for g1 in 1:grid.Nv ];
 
-# +
 p = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, Pgty1 )
 pMat = mGraphs.matrixForm(p);
 imshow(log.(pMat),cmap="cividis",vmax=0,origin="lower");
 colorbar()
 
-arrowPlot(GRIDSIZE, Pgty1, Bgty1, fsize=10, s0=100 )
+mPlot.squareGridArrowPlot(GRIDSIZE, Pgty1, Bgty1, fsize=10, s0=100 )
 title("log10(w) = $( log10( aW[(i-1)÷3 + 1][2] ) ), β = $( aSelStrength[(i-1)%3 + 1] )")
 
 # +
@@ -126,75 +125,14 @@ P = aTraj[i].jointProb / aTraj[i].NgenSample
 
 # mUtils.ReLog( ( sum(P, dims=[3,4])  .* sum(P, dims=[1,2,4]) ) ./ ( sum(P, dims=[1,4])  .* sum(P, dims=[2,3,4]) ) )
 
-sum( sum(P, dims=4) .* mUtils.ReLog( ( sum(P, dims=[3,4])  .* sum(P, dims=[1,2,4]) ) ./ ( sum(P, dims=[1,4])  .* sum(P, dims=[2,3,4]) ) ) ) 
-# -
-
-merged = +(aTraj[1], aTraj[2])
-
-function arrowPlot(L, Wv, We; dx=0.1, dy=0.06, w=0.05, fsize=7, s0=30)
-    d = Dict( 0 => [0,0], 1 => [0,-1], 2 => [-1,0], 3 => [0,1], 4 => [1,0] )
-    o = Dict( 0 => [0,0], 1 => [-1,0], 2 => [0,1], 3 => [1,0], 4 => [0,-1] )
-    
-    ℓ = 1.0 - 3dx
-
-    V = [ [ (i-1)÷GRIDSIZE + 1, (i-1)%GRIDSIZE + 1 ] for i in 1:L^2 ]
-
-    fig = figure(figsize=(fsize,fsize))
-    for (i,v) in enumerate(V)
-        for (j,p) in enumerate(We[i])
-            if p > 0
-                arrow( (v + dx*d[ j ] + dy*o[ j ])..., ℓ*d[ j ]...,
-                    head_length=dx, width=w*p, ec="tab:blue",fc="tab:blue")
-            end
-        end
-
-        scatter([v[1]], [v[2]], s=[(s0 * Wv[i])^2], cmap="cividis", c=10*[Wv[i]], alpha=0.5)
-    end
-
-    xticks(collect(1:L))
-    yticks(collect(L:-1:1),collect(1:L))
-end
+Base.show(io::IO, f::Float64) = @printf(io, "%.4f", f)
+sum( sum(P, dims=4) .* mUtils.ReLog.( ( sum(P, dims=[3,4])  .* sum(P, dims=[1,2,4]) ) ./ ( sum(P, dims=[1,4])  .* sum(P, dims=[2,3,4]) ) ) ) 
 
 # +
-aS = [ exp(f[g]*env.aSelCoef[2]) for g in 1:DIMGSPACE ]
-apS = aS ./ sum(aS)
+sum(P, dims=4)
 
-aP = ( ( Array(mGraphs.transitionMatrix(ety.G)) .+ Diagonal([ 1.0 + MINREPCOEF for i in 1:DIMGSPACE ]) ) * aS ) .* aS
-apP = aP ./ sum(aP)
-
-gf = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, afTb[1] )
-fMat = mGraphs.matrixForm(gf);
-
-gpS = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, apS )
-pSMat = mGraphs.matrixForm(gpS);
-
-gpP = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, apP )
-pPMat = mGraphs.matrixForm(gpP);
+mUtils.ReLog.( ( sum(P, dims=[3,4])  .* sum(P, dims=[1,2,4]) ) ./ ( sum(P, dims=[1,4])  .* sum(P, dims=[2,3,4]) ) )
 # -
-
-subplots(1,3,figsize=(15,7))
-subplot(131); title("Bare Fitness Function"); imshow(fMat,cmap="viridis");
-subplot(132); title("Selectivity"); imshow(log.(pSMat),cmap="cividis",vmax=0);
-subplot(133); title("Evolutionary Potential"); 
-
-subplots(1,3,figsize=(15,7))
-subplot(131); title("Bare Fitness Function"); imshow(fMat,cmap="viridis");
-subplot(132); title("Selectivity"); imshow(pSMat,cmap="cividis",vmax=1,vmin=0);
-subplot(133); title("Evolutionary Potential"); imshow(pPMat,cmap="cividis",vmax=1,vmin=0);
-
-# ### Population Dynamics
-
-# genotypic types
-
-subplots(1,3,figsize=(15,7))
-subplot(131); title("Population Distribution"); imshow(log.(pMat),cmap="cividis",vmax=0); colorbar(shrink=0.5)
-subplot(132); title("Selectivity"); imshow(log.(pSMat),cmap="cividis",vmax=0); colorbar(shrink=0.5)
-subplot(133); title("Evolutionary Potential"); imshow(log.(pPMat),cmap="cividis",vmax=0); colorbar(shrink=0.5)
-
-subplots(1,3,figsize=(15,7))
-subplot(131); title("Population Distribution"); imshow(pMat,cmap="cividis",vmax=.1,vmin=0);
-subplot(132); title("Selectivity"); imshow(pSMat,cmap="cividis",vmax=.1,vmin=0);
-subplot(133); title("Evolutionary Potential"); imshow(pPMat,cmap="cividis",vmax=.1,vmin=0);
 
 # ### Phase Diagram
 

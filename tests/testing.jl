@@ -21,17 +21,33 @@ display(aGtyCopy2)
 
 testTensor = rand(5,3,5,3)
 
+display( testTensor )
+
+display( sum(testTensor, dims=2)[1,1,1,1] )
+
 sum( sum(testTensor, dims=1), dims=2 ) ≈ sum( testTensor, dims=[1,2] )
 
 display(sum( sum(testTensor, dims=1), dims=2 ))
 
-struct testType
-    x::Float64
+testVec1 = rand(10)
+testVec2 = rand(10)
+
+for (i,v) in enumerate(testVec1), (j,w) in enumerate(testVec2)
+    println(i, " ", j)
 end
 
-import Base: +
-+(X::testType,Y::testType) = testType( X.x + Y.x )
+for d in 1:length( size( testTensor ) )
+    for i in 1:size( testTensor )[d]
+        println( i )
+    end
+end
 
-ciccio = +(testType(1),testType(2))
+for i in 1:size(testTensor)[1], j
 
-ciccio.x
+testMat = Matrix{Int64}(undef, 3, 3)
+
+for i in 1:3, j in 1:3
+    testMat[i,j] = i + (j-1)*3
+end
+
+display( testMat )
