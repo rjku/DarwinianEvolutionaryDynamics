@@ -3,7 +3,7 @@ module mEvoFunc
 
 using Base.Threads, Random
 using LinearAlgebra, SparseArrays, Statistics, Distributions, ForwardDiff, Distances
-using mEvoTypes, mUtils, mGraphs
+using EvolutionaryDynamics, mUtils, mGraphs
 using DelimitedFiles, Dates, ProgressMeter
 import Future
 
@@ -80,7 +80,7 @@ function mutation!(gty::AbstractGenotype,ety::atGtyMutEty)
 end
 
 function mutation!(gty::AbstractGenotype,ety::atPntMutEty)
-	K = 1.0/(1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty.aF[2])
+	K = 1.0/(1.0 + ety.minRepCoef + ety.pRepFactor[1]*gty.aFitness[2])
 	CDFmut = 1.0-K*(1.0-(1.0-ety.pPntMutFactor[1])^length(gty))		# probability of no mutation
 	Nmut::Int32 = 0;	rNmut = rand(THREADRNG[threadid()])
 
@@ -142,8 +142,8 @@ end
 # function. selection of the fittest within the niche population
 function selectionOne!(pop::AbstractPopulation,elite::Bool=false)
 	if elite
-		fmax = maximum([ gty.aF[3] for gty in pop.aGty[1:pop.pN[1]] ])
-		iSelected = findfirst( f -> f == fmax, [ gty.aF[2] for gty in pop.aGty[1:pop.pN[1]] ] )
+		fmax = maximum([ gty.aFitness[3] for gty in pop.aGty[1:pop.pN[1]] ])
+		iSelected = findfirst( f -> f == fmax, [ gty.aFitness[2] for gty in pop.aGty[1:pop.pN[1]] ] )
 	else
 		iSelected = selectionOne([ pop.aGty[i].aF[3] for i in 1:pop.pN[1] ])
 	end
@@ -153,18 +153,18 @@ end
 
 # function. condition for genotypic upgrade
 function upgradeCondition(gty::atSystemGty{<:atIsingMetaGty},maxSize::Integer)
-	return gty.aF[2] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < maxSize
+	return gty.aFitness[2] - (gty.pMetaGty[1].halfL - BASALFITNESS) > FITNESSTHRESHOLD && gty.pMetaGty[1].L < maxSize
 end
 
 # function. new genotypic variables choice. additive genotype case
 function newg!(gty::tAddGty{<:atIsingMetaGty},Gref::Vector)
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
-		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+		gty.genome[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
 			Gref[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L] + rand(THREADRNG[threadid()],-1:1)*gty.Δg
 	end
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
-		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+		gty.genome[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
 			Gref[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L] + rand(THREADRNG[threadid()],-1:1)*gty.Δg
 	end
 end
@@ -173,10 +173,10 @@ end
 function newg!(gty::tAlphaGty{<:atIsingMetaGty},Gref::Vector)
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
-		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
+		gty.genome[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
 	end
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
-		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
+		gty.genome[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] = rand(THREADRNG[threadid()],gty.g)
 	end
 	# there are a couple of connection missing in this routine
 end
@@ -185,29 +185,29 @@ end
 function newg!(gty::tCntGty{<:atIsingMetaGty},Gref::Vector)
 	# duplication of previous line genotype + some randomness
 	for k in 0:1, j in 1:gty.pMetaGty[1].L, i in 1:2
-		gty.G[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+		gty.genome[i*(gty.pMetaGty[1].halfL+1)+(j+k*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
 			Gref[i*gty.pMetaGty[1].halfL+(j+k*(gty.pMetaGty[1].L)-1)*gty.pMetaGty[1].L]
 	end
 
 	for u in 0:1, k in 0:1, j in 1:2, i in 1:gty.pMetaGty[1].halfL
-		gty.G[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
+		gty.genome[i+k*(gty.pMetaGty[1].halfL+1)+(j+gty.pMetaGty[1].L+u*(gty.pMetaGty[1].L+2)-1)*(gty.pMetaGty[1].L+2)] =
 			Gref[i+k*gty.pMetaGty[1].halfL+(j+gty.pMetaGty[1].L*(u+1)-3)*gty.pMetaGty[1].L]
 	end
 
-	gty.G[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+1 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
-	gty.G[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+3 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
-	gty.G[ ( gty.pMetaGty[1].L+2 )*( 2gty.pMetaGty[1].L+3 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
-	gty.G[ ( gty.pMetaGty[1].L+2 )*( 2gty.pMetaGty[1].L+4 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.genome[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+1 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.genome[ ( gty.pMetaGty[1].halfL+1 )*( 2gty.pMetaGty[1].L+3 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.genome[ ( gty.pMetaGty[1].L+2 )*( 2gty.pMetaGty[1].L+3 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.genome[ ( gty.pMetaGty[1].L+2 )*( 2gty.pMetaGty[1].L+4 ) ] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
 	# there are a couple of connection missing in this routine
 end
 
 # function. upgrade genotypic variables
 function upgradeGtyG!(gty::atSystemGty{<:atIsingMetaGty})
-	Gref = copy(gty.G)
-	append!( gty.G, ones(Float64, 8gty.pMetaGty[1].L+8) )
+	Gref = copy(gty.genome)
+	append!( gty.genome, ones(Float64, 8gty.pMetaGty[1].L+8) )
 
 	for u in 0:1, j in 1:gty.pMetaGty[1].L, k in 0:1, i in 1:gty.pMetaGty[1].halfL
-		gty.G[ i + k*(gty.pMetaGty[1].halfL + 1) + (j + u*(gty.pMetaGty[1].L + 2) - 1)*(gty.pMetaGty[1].L+2) ] =
+		gty.genome[ i + k*(gty.pMetaGty[1].halfL + 1) + (j + u*(gty.pMetaGty[1].L + 2) - 1)*(gty.pMetaGty[1].L+2) ] =
 			Gref[ i + k*gty.pMetaGty[1].halfL + (j + u*gty.pMetaGty[1].L - 1)*gty.pMetaGty[1].L ]
 	end
 	newg!(gty,Gref)
@@ -315,7 +315,7 @@ function metropolisEvoStep!(gty::AbstractGenotype,env::AbstractEnvironment)
 	for i in 1:length(gty)
 		mutation!(gtyClone,rand(THREADRNG[threadid()],1:length(gty)))
 		fitness!(gtyClone,env)
-		if rand(THREADRNG[threadid()]) < min(1,gtyClone.aF[3]/gty.aF[3])
+		if rand(THREADRNG[threadid()]) < min(1,gtyClone.aF[3]/gty.aFitness[3])
 			copy!(gty,gtyClone)
 			Nmut += 1
 		else
@@ -473,8 +473,8 @@ end
 
 function generateRndGty!(gty::tAlphaGty,env::AbstractEnvironment,Ntrials::Integer,θ::Real)
 	trial = 0
-	while gty.aF[1] > θ || trial < Ntrials
-		gty.G .= rand(THREADRNG[threadid()], gty.g, length(gty))
+	while gty.aFitness[1] > θ || trial < Ntrials
+		gty.genome .= rand(THREADRNG[threadid()], gty.g, length(gty))
 		fitness!(gty,env)
 		trial += 1
 	end
@@ -492,7 +492,7 @@ export evoUpgrade!, upgradeGtyG!, setNextAch!
 # =============
 
 function fitness!(gty::AbstractGenotype,env::AbstractEnvironment)
-	gty.aF .= fitness(gty,env)
+	gty.aFitness .= fitness(gty,env)
 end
 
 export fitness, fitness!
@@ -584,7 +584,7 @@ function fitness(gty::atSystemGty{<:atIsingMetaGty},env::tCompEnv{<:Vector{<:Vec
 	ℓVals = zeros(Float64,gty.pMetaGty[1].prms.Ntrials)
 	for t in 1:gty.pMetaGty[1].prms.Ntrials
 		for io in env.IOidl
-			ℓVals[t] += ( metropolis(gty.pMetaGty[1],broadcast(x->10.0^(x),gty.G),io[1]) - io[2] )^2
+			ℓVals[t] += ( metropolis(gty.pMetaGty[1],broadcast(x->10.0^(x),gty.genome),io[1]) - io[2] )^2
 		end
 	end
 	d2 = maximum(ℓVals)
@@ -617,11 +617,11 @@ function tDisChnMetaGty(L::Int32, p::Float64, kout::Float64)
 		end
 	end
 
-	mEvoTypes.tDisChnMetaGty(L, L^2, L2mL, 2Nvbl, Nvbl, p, V, kout)
+	EvolutionaryDynamics.tDisChnMetaGty(L, L^2, L2mL, 2Nvbl, Nvbl, p, V, kout)
 end
 
 function getW(gty::atSystemGty{<:atChannelMetaGty})
-	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.genome), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
 	W[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= gty.pMetaGty[1].kout
 	for i in 1:gty.pMetaGty[1].L2
 		W[i,i] = -sum(W[:,i])
@@ -657,7 +657,7 @@ end
 # function: constructor of normalized stochastic matrix for disordered channel metagenotype
 # The last column is kept null as it is reserved for input transitions. The last row encodes the normalization.
 function getWnrmd(gty::atSystemGty{<:atChannelMetaGty})
-	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+	W = sparse(gty.pMetaGty[1].V..., broadcast(x->10^(x),gty.genome), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
 	W[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= gty.pMetaGty[1].kout
 	for i in 1:gty.pMetaGty[1].L2
 		W[i,i] = -sum(W[:,i])
@@ -746,7 +746,7 @@ function getSpinStat!(env::tCompEnv,gty::atSystemGty{<:atIsingMetaGty},aSpinAve:
 		aan[i] = [ Array{Int8}(undef, gty.pMetaGty[1].L, gty.pMetaGty[1].L) for ismpl in 1:prms.Nsmpl ]
 		aSpinCorFisherz[i] = Array{Float64}(undef, gty.pMetaGty[1].L2, gty.pMetaGty[1].L2)
 
-		metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.G), env.IOidl[i][1], aan[i], prms )
+		metropolis!( gty.pMetaGty[1], broadcast(x->10^(x),gty.genome), env.IOidl[i][1], aan[i], prms )
 
 		for s in 1:gty.pMetaGty[1].L2
 			aSpinAve[i][s] = mean([aan[i][t][s] for t in 1:prms.Nsmpl])
@@ -772,14 +772,14 @@ function showG!(gty::tCntGty{<:atIsingMetaGty},GMat::Array{Float64,2})
 	ii::Int32 = 0
 	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
 		#	column is odd => ( row is even => G ; otherwise spin place ) ; otherwise ( row is odd => G ; otherwise empty space )
-		GMat[i,j] = j%2==1 ? ( i%2==0 ? gty.G[ii+=1] : gty.gbounds[1] - 10 ) : ( i%2==1 ? gty.G[ii+=1] : gty.gbounds[2] + 10 )
+		GMat[i,j] = j%2==1 ? ( i%2==0 ? gty.genome[ii+=1] : gty.gbounds[1] - 10 ) : ( i%2==1 ? gty.genome[ii+=1] : gty.gbounds[2] + 10 )
 	end
 end
 
 function showJij!(gty::atSystemGty{<:atIsingMetaGty},JijMat::Array{Float64,2})
 	ii::Int32 = 0
 	for j in 1:2gty.pMetaGty[1].L, i in 1:2gty.pMetaGty[1].L
-		JijMat[i,j] = j%2==1 ? ( i%2==0 ? 10^(gty.G[ii+=1]) : -1 ) : ( i%2==1 ? 10^(gty.G[ii+=1]) : 10^6+1 )
+		JijMat[i,j] = j%2==1 ? ( i%2==0 ? 10^(gty.genome[ii+=1]) : -1 ) : ( i%2==1 ? 10^(gty.genome[ii+=1]) : 10^6+1 )
 	end
 end
 
@@ -803,10 +803,10 @@ end
 function getJij!(gty::atSystemGty{<:atIsingMetaGty},JijMat::Array{Float64,2})
 	JijMat .= 0
 	for x in 1:gty.pMetaGty[1].L, y in 1:gty.pMetaGty[1].L
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jp[x]+(y-1)*gty.pMetaGty[1].L ] = 10.0^gty.G[ gty.pMetaGty[1].Jpi[x,y] ]
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jm[x]+(y-1)*gty.pMetaGty[1].L ] = 10.0^gty.G[ gty.pMetaGty[1].Jmi[x,y] ]
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jp[y]-1)*gty.pMetaGty[1].L ] = 10.0^gty.G[ gty.pMetaGty[1].Jpj[x,y] ]
-		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jm[y]-1)*gty.pMetaGty[1].L ] = 10.0^gty.G[ gty.pMetaGty[1].Jmj[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jp[x]+(y-1)*gty.pMetaGty[1].L ] = 10.0^gty.genome[ gty.pMetaGty[1].Jpi[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, gty.pMetaGty[1].jm[x]+(y-1)*gty.pMetaGty[1].L ] = 10.0^gty.genome[ gty.pMetaGty[1].Jmi[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jp[y]-1)*gty.pMetaGty[1].L ] = 10.0^gty.genome[ gty.pMetaGty[1].Jpj[x,y] ]
+		JijMat[ x+(y-1)*gty.pMetaGty[1].L, x+(gty.pMetaGty[1].jm[y]-1)*gty.pMetaGty[1].L ] = 10.0^gty.genome[ gty.pMetaGty[1].Jmj[x,y] ]
 	end
 end
 
@@ -952,7 +952,7 @@ end
 
 # function: returns the matrix - log10 𝕎 | diagonal and entries ∅ ⇢ intrnal states are 0
 function entropyRateMtx(gty::atSystemGty{<:atChannelMetaGty},dt::Float64)
-	entropyRateMtx = sparse(gty.pMetaGty[1].V..., broadcast( e -> 1.0 - e - log10(dt), gty.G), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
+	entropyRateMtx = sparse(gty.pMetaGty[1].V..., broadcast( e -> 1.0 - e - log10(dt), gty.genome), gty.pMetaGty[1].L2+1, gty.pMetaGty[1].L2+1)
 	entropyRateMtx[end,gty.pMetaGty[1].L2mL+1:gty.pMetaGty[1].L2] .= 1.0 - log10(gty.pMetaGty[1].kout) - log10(dt)
 	for i in 1:gty.pMetaGty[1].L2
 		entropyRateMtx[i,i] = 0.0
@@ -982,7 +982,7 @@ function entropyRate(pop::tEvoPop,prfBins::Vector{Float64},dt::Float64)
 
 	# @showprogress 1 "Robustness Test Status: "
 	@threads for gty in pop.aGty[1:pop.pN[2]]
-		iBin = binIndex(gty.aF[1],prfBins)
+		iBin = binIndex(gty.aFitness[1],prfBins)
 		if iBin > 0
 			rateMtx = getWnrmd(gty)
 			entRateMtx = entropyRateMtx(gty,dt)
@@ -1012,7 +1012,7 @@ function testRbst!(gty::AbstractGenotype,env::AbstractEnvironment,aRbst::Vector{
 		copy!(gtyClone,gty)
 		mutation!(gtyClone,i)
 		fitness!(gtyClone,env)
-		aRbst[i] = sensitivity(gtyClone.aF[1],gty.aF[1])
+		aRbst[i] = sensitivity(gtyClone.aF[1],gty.aFitness[1])
 	end
 end
 
@@ -1031,7 +1031,7 @@ function testRbst!(pop::tEvoPop,aRbst::Vector{Vector{Float64}},prfBins::Vector{F
 
 	# @showprogress 1 "Robustness Test Status: "
 	@threads for gty in pop.aGty[1:pop.pN[2]]
-		iBin = binIndex(gty.aF[1],prfBins)
+		iBin = binIndex(gty.aFitness[1],prfBins)
 		if iBin > 0
 			vRbst = Vector{Float64}(undef,length(gty))
 			testRbst!(gty,pop.env,vRbst)
@@ -1200,7 +1200,7 @@ export read_aIsingSigTransGty, read_tEvoData
 # *******************
 
 function fitness!(gty::AbstractGenotype,trivialEnv::tTrivialEnv)
-	gty.aF[2]=1/(euclidean(gty.G,ones(Float64,gty.pMetaGty[1].dG))+FITNESSOFFSET)
+	gty.aFitness[2]=1/(euclidean(gty.genome,ones(Float64,gty.pMetaGty[1].dG))+FITNESSOFFSET)
 end
 
 export fitness!

@@ -7,7 +7,7 @@ display( p )
 display( b )
 display( b ./ p )
 
-using mEvoTypes
+using EvolutionaryDynamics
 
 aGty = [ TabularGenotype( rand(1:10,2) ) for i in 1:3]
 aGtyCopy = copy( aGty )

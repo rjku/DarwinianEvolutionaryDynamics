@@ -17,7 +17,7 @@
 # +
 using Revise, BenchmarkTools, PyPlot, Distances, MATLAB, Printf
 using Statistics, LinearAlgebra
-using mEvoTypes
+using EvolutionaryDynamics
 import mEvoFunc, mUtils, mPlot
 
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
@@ -514,11 +514,11 @@ aOutputNodes = [ aDisChnMetaGty[1].L2mL .+ findall(x -> x >= 1/SYSTEMSIZE, disCh
 
 # +
 # GKP Dynamics Statistics: last evolution step
-fmax = maximum([ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
-iGty = findall( f -> f == fmax, [ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
+fmax = maximum([ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
+iGty = findall( f -> f == fmax, [ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
 
-fmin = minimum([ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
-iGtyLow = findall( f -> f == fmin, [ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
+fmin = minimum([ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
 
 fittestFluxPattern = tFluxPattern(disChnEnv,disChnPop.aGty[iGty])
 fittestCrntPtrn = tCrntPattern(disChnEnv,disChnPop.aGty[iGty])
@@ -625,11 +625,11 @@ end
 
 # +
 # Niche Statistics: last evolution step
-fmax = minimum([ gty.aF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
-iGty = findall( f -> f == fmax, [ gty.aF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
+fmax = minimum([ gty.aFitness[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
+iGty = findall( f -> f == fmax, [ gty.aFitness[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
 
-fmin = maximum([ gty.aF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
-iGtyLow = findall( f -> f == fmin, [ gty.aF[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
+fmin = maximum([ gty.aFitness[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.aFitness[1] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
 
 fittestFluxPatternNiche = tFluxPattern(disChnEnv,disChnPopNiche.aGty[iGty])
 fittestCrntPtrnNiche = tCrntPattern(disChnEnv,disChnPopNiche.aGty[iGty])
@@ -686,11 +686,11 @@ end
 
 # +
 # One Statistics: last evolution step
-fmax = minimum([ gty.aF[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])
-iGty = findall( f -> f == fmax, [ gty.aF[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])[1]
+fmax = minimum([ gty.aFitness[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])
+iGty = findall( f -> f == fmax, [ gty.aFitness[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])[1]
 
-fmin = maximum([ gty.aF[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])
-iGtyLow = findall( f -> f == fmin, [ gty.aF[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])[1]
+fmin = maximum([ gty.aFitness[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.aFitness[1] for gty in disChnPopOne.aGty[1:disChnPopOne.pN[2]] ])[1]
 
 fittestFluxPatternOne = tFluxPattern(disChnEnv,disChnPopOne.aGty[iGty])
 fittestCrntPtrnOne = tCrntPattern(disChnEnv,disChnPopOne.aGty[iGty])

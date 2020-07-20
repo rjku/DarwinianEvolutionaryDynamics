@@ -15,10 +15,8 @@
 # ---
 
 # +
-using Revise, BenchmarkTools, PyPlot, Distances, Printf
-using Statistics, LinearAlgebra
-using mEvoTypes
-import mEvoFunc, mUtils, mGraphs
+using Revise, BenchmarkTools, PyPlot, Printf
+import EvolutionaryDynamics, mUtils, mGraphs
 
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
@@ -45,23 +43,23 @@ for i in eachindex(f)
     if (i-1)÷GRIDSIZE < BLOCKSIZE && (i-1)%GRIDSIZE < BLOCKSIZE
         f[i] = HF
     end
-    
+
     # bottom right line
     if ( (i-1)÷GRIDSIZE == GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE > GRIDSIZE - BLOCKSIZE ) ||
         ( (i-1)÷GRIDSIZE >= GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE == GRIDSIZE - BLOCKSIZE )
         f[i] = HF
     end
-    
+
     # bottom left point
     if (i-1)÷GRIDSIZE == BLOCKSIZE - 1 && (i-1)%GRIDSIZE == GRIDSIZE - BLOCKSIZE
         f[i] = HF
     end
-    
+
     # bottom left line
     if GRIDSIZE - BLOCKSIZE <= (i-1)÷GRIDSIZE <= GRIDSIZE - BLOCKSIZE + 1 && (i-1)%GRIDSIZE == BLOCKSIZE - 1
         f[i] = HF
     end
-    
+
     # top right block
     # if (i-1)÷GRIDSIZE >= GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE < BLOCKSIZE
     #     f[i] = MF
@@ -79,8 +77,8 @@ end
 # +
 grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE,[ MUTFACTOR for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
 
-env = TabularEnvironment([f],[REPSTRENGTH, SELSTRENGTH])
-ety = TabularEvotype([REPFACTOR],MINREPCOEF,grid);
+ety = EvolutionaryDynamics.TabularEvotype([REPFACTOR],MINREPCOEF,grid);
+env = EvolutionaryDynamics.TabularEnvironment(f,[REPSTRENGTH, SELSTRENGTH])
 
 # +
 aS = [ exp(f[g]*env.aSelCoef[2]) for g in 1:DIMGSPACE ]
@@ -99,7 +97,7 @@ gpP = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, apP )
 pPMat = mGraphs.matrixForm(gpP);
 # -
 
-aS[7], aS[1] 
+aS[7], aS[1]
 
 subplots(1,3,figsize=(15,7))
 subplot(131); title("Bare Fitness Function"); imshow(fMat,cmap="viridis");
@@ -114,12 +112,12 @@ subplot(133); title("Evolutionary Potential"); imshow(pPMat,cmap="cividis",vmax=
 # ### Population Dynamics
 
 # genotypic types
-aGty = [ TabularGenotype( rand( 1:GRIDSIZE^2, 1 ) ) for i in 1:NPOP ];
+aGty = [ EvolutionaryDynamics.Genotype( rand( 1:GRIDSIZE^2, 1 ) ) for i in 1:NPOP ];
 
 # +
-pop = mEvoFunc.init_Population( NPOP,ety,env,aGty );
+pop = EvolutionaryDynamics.init_Population( NPOP,ety,env,aGty );
 
-evoData = EvoData(NGEN);
+evoData = TrajectoryData(NGEN);
 
 mEvoFunc.gmsNicOneED!(pop,evoData,elite=false);
 # -
@@ -168,23 +166,23 @@ for i in eachindex(f)
     if (i-1)÷GRIDSIZE < BLOCKSIZE && (i-1)%GRIDSIZE < BLOCKSIZE
         f[i] = HF
     end
-    
+
     # bottom right line
     if ( (i-1)÷GRIDSIZE == GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE > GRIDSIZE - BLOCKSIZE ) ||
         ( (i-1)÷GRIDSIZE >= GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE == GRIDSIZE - BLOCKSIZE )
         f[i] = HF
     end
-    
+
     # bottom left point
     if (i-1)÷GRIDSIZE == BLOCKSIZE - 2 && (i-1)%GRIDSIZE == GRIDSIZE - BLOCKSIZE + 1
         f[i] = HF
     end
-    
+
     # top right point
 #     if GRIDSIZE - BLOCKSIZE <= (i-1)÷GRIDSIZE <= GRIDSIZE - BLOCKSIZE + 1 && (i-1)%GRIDSIZE == BLOCKSIZE - 1
 #         f[i] = HF
 #     end
-    
+
     # top right block
     if (i-1)÷GRIDSIZE >= GRIDSIZE - BLOCKSIZE && (i-1)%GRIDSIZE < BLOCKSIZE
         f[i] = MF
@@ -197,7 +195,7 @@ selStrengthVals = [ 10^-i for i in 0:1/2:1];
 
 
 # +
-aEvoData = EvoData[]
+aEvoData = TrajectoryData[]
 aaGty = Vector{Vector{TabularGenotype}}(undef,0)
 aPop = Population[]
 
@@ -209,7 +207,7 @@ for β in selStrengthVals, μ in mutFactorVals
     push!(aEvoData,EvoData(NGEN))
     push!( aaGty, [ TabularGenotype( rand( 1:DIMGSPACE, 1 ) ) for i in 1:NPOP ] );
     push!( aPop, mEvoFunc.init_Population( NPOP,ety,env,aaGty[end] ) );
-    
+
     mEvoFunc.gmsNicOneED!(aPop[end],aEvoData[end],elite=false);
 end
 # -
@@ -241,7 +239,7 @@ for pop in aPop
     P = mEvoFunc.popStatistics(pop)
     p = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, P )
     pMat = mGraphs.matrixForm(p);
-    
+
     aS = [ exp(f[g]*pop.env.aSelCoef[2]) for g in 1:DIMGSPACE ]
     apS = aS ./ sum(aS)
 
@@ -254,7 +252,7 @@ for pop in aPop
 
     gpP = mGraphs.VertexWeightedSquareLattice( GRIDSIZE, apP )
     pPMat = mGraphs.matrixForm(gpP);
-    
+
     subplots(1,3,figsize=(15,7))
     subplot(131); title("Genotype PMF: β = $(pop.env.aSelCoef[2]), μ = $(pop.ety.G.We[1])");
         imshow(log.(pMat),cmap="cividis",vmax=0);
@@ -262,10 +260,8 @@ for pop in aPop
         imshow(log.(pSMat),cmap="cividis",vmax=0);
     subplot(133); title("Evolutionary Potential | KL = $(mUtils.KLdivergence(P,apP))");
         imshow(log.(pPMat),cmap="cividis",vmax=0);
-    
+
 #         imshow(pMat,cmap="cividis",vmax=.15,vmin=0); # colorbar()
 #     subplot(132); title("Selectivity"); imshow(pSMat,cmap="cividis",vmax=.15,vmin=0);
 #     subplot(133); title("Evolutionary Potential"); imshow(pPMat,cmap="cividis",vmax=.15,vmin=0);
 end
-# -
-

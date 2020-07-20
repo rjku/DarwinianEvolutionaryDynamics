@@ -13,7 +13,7 @@
 #     name: julia-(4-threads)-1.2
 # ---
 
-using Revise, BenchmarkTools, Statistics, LinearAlgebra, Statistics, PyPlot, mEvoTypes
+using Revise, BenchmarkTools, Statistics, LinearAlgebra, Statistics, PyPlot, EvolutionaryDynamics
 import mEvoFunc
 
 # +

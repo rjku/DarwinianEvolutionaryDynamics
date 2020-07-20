@@ -16,7 +16,7 @@
 
 using Revise, BenchmarkTools, PyPlot, MATLAB, Distances
 using Statistics, LinearAlgebra
-using mEvoTypes
+using EvolutionaryDynamics
 import mEvoFunc, mUtils
 
 # +
@@ -322,11 +322,11 @@ tight_layout(); subplots_adjust(top=0.9333);
 
 # +
 # GKP Dynamics Statistics: last evolution step
-fmax = maximum([ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
-iGty = findall( f -> f == fmax, [ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
+fmax = maximum([ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
+iGty = findall( f -> f == fmax, [ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
 
-fmin = minimum([ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
-iGtyLow = findall( f -> f == fmin, [ gty.aF[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
+fmin = minimum([ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.aFitness[2] for gty in disChnPop.aGty[1:disChnPop.pN[2]] ])[1]
 
 fittestFluxPattern = tFluxPattern(disChnEnv,disChnPop.aGty[iGty])
 fittestCrntPtrn = tCrntPattern(disChnEnv,disChnPop.aGty[iGty])
@@ -369,11 +369,11 @@ shittyCrntPtrn = tCrntPattern(disChnEnv,disChnPop.aGty[disChnPop.pN[2]])
 
 # +
 # Niche Statistics: last evolution step
-fmax = maximum([ gty.aF[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
-iGty = findall( f -> f == fmax, [ gty.aF[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
+fmax = maximum([ gty.aFitness[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
+iGty = findall( f -> f == fmax, [ gty.aFitness[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
 
-fmin = minimum([ gty.aF[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
-iGtyLow = findall( f -> f == fmin, [ gty.aF[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
+fmin = minimum([ gty.aFitness[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])
+iGtyLow = findall( f -> f == fmin, [ gty.aFitness[2] for gty in disChnPopNiche.aGty[1:disChnPopNiche.pN[2]] ])[1]
 
 fittestFluxPattern = tFluxPattern(disChnEnv,disChnPopNiche.aGty[iGty])
 fittestCrntPtrn = tCrntPattern(disChnEnv,disChnPopNiche.aGty[iGty])

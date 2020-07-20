@@ -88,7 +88,7 @@ end
 tAlphaGty(pMetaGty::Vector{Tmgty},G::TG,g::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
 	tAlphaGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,g,[0.0,0.0,0.0])
 
-Base.copy(gty::tAlphaGty) = tAlphaGty( gty.pMetaGty, deepcopy(gty.G), gty.g, deepcopy(gty.aF) )
+Base.copy(gty::tAlphaGty) = tAlphaGty( gty.pMetaGty, deepcopy(gty.genome), gty.g, deepcopy(gty.aFitness) )
 
 # type: genotype with binary (not unbounded) genotypic variables
 struct tBinaryGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
@@ -101,7 +101,7 @@ end
 tBinaryGty(pMetaGty::Vector{Tmgty},G::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
 	tBinaryGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,[0.0,0.0,0.0])
 
-Base.copy(gty::tBinaryGty) = tBinaryGty( gty.pMetaGty, deepcopy(gty.G), deepcopy(gty.aF) )
+Base.copy(gty::tBinaryGty) = tBinaryGty( gty.pMetaGty, deepcopy(gty.genome), deepcopy(gty.aFitness) )
 
 # type: genotype with continuous bounded genotypic variables
 struct tCntGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
@@ -115,7 +115,7 @@ end
 tCntGty(pMetaGty::Vector{Tmgty},G::TG,gbounds::TG) where {Tmgty<:atMetaGenotype,TG<:AbstractArray} =
 	tCntGty{Tmgty,Vector{Tmgty},TG}(pMetaGty,G,gbounds,[0.0,0.0,0.0])
 
-Base.copy(gty::tCntGty) = tCntGty( gty.pMetaGty, deepcopy(gty.G), gty.gbounds, deepcopy(gty.aF))
+Base.copy(gty::tCntGty) = tCntGty( gty.pMetaGty, deepcopy(gty.genome), gty.gbounds, deepcopy(gty.aFitness))
 
 # type: genotype with continuous bounded genotypic variables and genetic assimilation mechanism
 struct tCntGenAssGty{Tmgty<:atMetaGenotype,Tpmgty<:Vector{Tmgty},TG<:AbstractArray} <: atSystemGty{Tmgty}
@@ -298,30 +298,30 @@ struct tStat{Tave<:Vector{<:Number},Tcov<:Array{<:Number}}
 end
 
 tStat(gty::AbstractGenotype) = tStat(
-	Array{typeof(gty.G[1])}(undef,length(gty)),
-	Array{typeof(gty.G[1])}(undef,length(gty),length(gty)),
-	Array{typeof(gty.G[1])}(undef,length(gty),length(gty))
+	Array{typeof(gty.genome[1])}(undef,length(gty)),
+	Array{typeof(gty.genome[1])}(undef,length(gty),length(gty)),
+	Array{typeof(gty.genome[1])}(undef,length(gty),length(gty))
 )
 
 tStat(Nv::Integer) = tStat( Array{Float64}(undef,Nv), Array{Float64}(undef,Nv,Nv), Array{Float64}(undef,Nv,Nv) )
 
-export EvoData, tEvoData, tFluxPattern, tCrntPattern, tStat
+export TrajectoryData, tEvoData, tFluxPattern, tCrntPattern, tStat
 
 # ==========
 #  METHODS
 
 function mutation!(gty::tAddGty,i::Integer)
-	gty.G[ i % length(gty) + 1 ] += i % 2 == 0 ? gty.Δg : -gty.Δg
+	gty.genome[ i % length(gty) + 1 ] += i % 2 == 0 ? gty.Δg : -gty.Δg
 end
 
 function mutation!(gty::tMltGty,i::Integer)
-	gty.G[ i % length(gty) + 1 ] *= i % 2 == 0 ? gty.δg : 1.0/gty.δg
+	gty.genome[ i % length(gty) + 1 ] *= i % 2 == 0 ? gty.δg : 1.0/gty.δg
 end
 
 function mutation!(gty::tAlphaGty,i::Integer)
-	gty.G[i] = rand(THREADRNG[threadid()], filter( e -> e != gty.G[i], gty.g ))
+	gty.genome[i] = rand(THREADRNG[threadid()], filter( e -> e != gty.genome[i], gty.g ))
 end
 
 function mutation!(gty::tCntGty,i::Integer)
-	gty.G[i] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
+	gty.genome[i] = gty.gbounds[1] + rand(THREADRNG[threadid()])*(gty.gbounds[2] - gty.gbounds[1])
 end

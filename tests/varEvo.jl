@@ -17,7 +17,7 @@
 # +
 using Revise, BenchmarkTools, PyPlot, Printf
 # using Distances, Statistics, LinearAlgebra
-import mEvoTypes, mUtils, mGraphs, mPlot
+import EvolutionaryDynamics, mUtils, mGraphs, mPlot
 
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
@@ -83,11 +83,11 @@ fMat = mGraphs.matrixForm(gf);
 imshow(fMat,cmap="viridis",origin="lower");
 
 # +
-aTraj = mEvoTypes.TrajectoryData[]
+aTraj = EvolutionaryDynamics.VaryingEnvironmentTrajectoryData[]
 
 for W in aW, β in aSelStrength
     @time for i in 1:NSAMPLES
-        traj = mEvoTypes.generateVaryingTabularSystemsITrajectories(
+        traj = EvolutionaryDynamics.generateVaryingTabularSystemsITrajectories(
                 REPFACTOR, MINREPCOEF, MUTFACTOR, λM, grid,
                 afTb, REPSTRENGTH, β, W, NPOP, NGENRELAX, NGENSAMPLE
             )
@@ -185,7 +185,7 @@ selStrengthVals = [ 10^-i for i in 0:1/2:1];
 
 
 # +
-aEvoData = EvoData[]
+aEvoData = TrajectoryData[]
 aaGty = Vector{Vector{TabularGenotype}}(undef,0)
 aPop = Population[]
 
