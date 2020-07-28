@@ -32,7 +32,9 @@ export IsVaryingEnvironment, StationaryEnvironment, MarkovianEnvironment, envSta
 # Replication
 
 abstract type ReplicationType end
-struct FitnessReplication <: ReplicationType end
+struct FitnessReplication <: ReplicationType
+	repFactor::Float64
+end
 struct NeutralReplication <: ReplicationType
 	repCoef::Int32
 end
@@ -42,6 +44,17 @@ struct WithoutReplication <: ReplicationType end
 ReplicationType(::Type) = NeutralReplication()
 
 export ReplicationType, FitnessReplication, NeutralReplication, WithoutReplication
+# --------
+# Mutation
+
+abstract type MutationType end
+struct StandardMutation <: MutationType end
+struct RescaledMutation <: MutationType end
+
+# default behavior
+MutationType(::Type) = StandardMutation()
+
+export MutationType, StandardMutation, RescaledMutation
 # ---------
 # Selection
 
@@ -52,12 +65,13 @@ struct NeutralSelection <: SelectionType end
 # default behavior
 SelectionType(::Type) = FitnessSelection()
 
-export SelectionType, FitnessSelection, NeutralReplication
+export SelectionType, FitnessSelection, NeutralSelection
 # --------------------
 # Basic Concrete Types
 
-struct Evotype{Trep<:ReplicationType,Tsel<:SelectionType} <: AbstractEvotype
+struct Evotype{Trep<:ReplicationType,Tmut<:MutationType,Tsel<:SelectionType} <: AbstractEvotype
 	repType::Trep
+	mutType::Tmut
 	selType::Tsel
 end
 

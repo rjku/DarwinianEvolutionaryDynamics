@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # evolution and population constants
-const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^4), Int32(10^4), Int32(10^3)
+const NGENRELAX, NGENSAMPLE, NPOP = Int32(10^3), Int32(10^3), Int32(10^3)
 const NSAMPLES = 10^3
 
 
@@ -11,7 +11,7 @@ const DIMGSPACE = GRIDSIZE^2
 const BLOCKSIZE = GRIDSIZE÷3
 
 # environmental constants
-const REPSTRENGTH, REPFACTOR, MINREPCOEF = 0.0, 0.0, 3.0
+const REPFACTOR, REPCOEF = 0.0, 3.0
 const LF, MF, HF = 1.0, 3.0, 5.0
 
 aMutFactor = [ 0.01, 0.03, 0.1 ]

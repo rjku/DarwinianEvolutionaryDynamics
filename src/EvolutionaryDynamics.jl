@@ -2,7 +2,9 @@
 module EvolutionaryDynamics
 
 include("Types.jl")
-# using .Types
+using .Types: ReplicationType, FitnessReplication, NeutralReplication, WithoutReplication
+using .Types: MutationType, StandardMutation, RescaledMutation
+using .Types: SelectionType, FitnessSelection, NeutralReplication
 
 include("Methods.jl")
 # using .Methods

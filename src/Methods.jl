@@ -1,4 +1,4 @@
-
+/
 module Methods
 
 # using ..EvolutionaryDynamics
@@ -14,21 +14,62 @@ const THREADRNG = let m = MersenneTwister(1)
 
 import Distributions.Categorical
 
-# generic population replication
-function replication!(pop::AbstractPopulation)
-	Kr = Vector{Float64}(undef,nthreads())
-	ipKr = Vector{Int32}(undef,nthreads())
-	G = zeros(Int32,pop.pN[2])
+#---------
+# Ancestry
 
-	# @threads
-	for i in 1:pop.pN[2]
-		Kr[threadid()] = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[i].aFitness[2]
-		ipKr[threadid()] = trunc(Int32,Kr[threadid()])
+ancestry(ety::AbstractEvotype, Npop::Integer) = _ancestry(ety.repType, Npop)
+
+function _ancestry(repType::NeutralReplication, Npop)
+	ancestryVec = [ i for i in 1:((repType.repCoef + 1) * Npop) ]
+	iAncestry = Npop
+	for i in 1:Npop
+		for inew in 1:repType.repCoef
+			iAncestry += 1
+			ancestryVec[iAncestry] = i
+		end
+	end
+
+	return ancestryVec
+end # function _ancestry NeutralReplication
+
+_ancestry(::FitnessReplication, Npop) = [ i for i in 1:Npop ]
+
+_ancestry(::WithoutReplication, Npop) = [ i for i in 1:Npop ]
+
+export ancestry
+#------------
+# Replication
+
+replication!(pop::AbstractPopulation) = _replication!(pop.ety.repType, pop)
+
+function _replication!(repType::FitnessReplication, pop::AbstractPopulation)
+	Kr = Vector{Float64}(undef,	nthreads())
+	ipKr = Vector{Int32}(undef,	nthreads())
+	G = zeros(Int32, pop.pN[2])
+
+	@threads for i in 1:pop.pN[2]
+		Kr[threadid()] = repType.repFactor * fitness(pop.aGty[i])
+		ipKr[threadid()] = trunc(Int32, Kr[threadid()])
 		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
 
 	for i in 1:pop.pN[2]
 		for inew in 1:G[i]
+			pop.pN[1] += 1
+			if pop.pN[1] <= length(pop.aGty)
+				pop.aGty[pop.pN[1]] = copy(pop.aGty[i])
+			else
+				push!(pop.aGty, copy(pop.aGty[i]))
+			end
+		end
+	end
+
+	return log(pop.pN[1] / pop.pN[2])
+end
+
+function _replication!(repType::NeutralReplication, pop)
+	for i in 1:pop.pN[2]
+		for inew in 1:repType.repCoef
 			pop.pN[1] += 1
 			if pop.pN[1] <= length(pop.aGty)
 				pop.aGty[pop.pN[1]] = copy(pop.aGty[i])
@@ -39,17 +80,23 @@ function replication!(pop::AbstractPopulation)
 	end
 
 	return log(pop.pN[1]/pop.pN[2])
-end
+end # function _replication! NeutralReplication
 
-function replication!(pop::AbstractPopulation, ancestry)
-	Kr = Vector{Float64}(undef,nthreads())
-	ipKr = Vector{Int32}(undef,nthreads())
-	G = zeros(Int32,pop.pN[2])
+_replication!(repType::WithoutReplication, pop) = 0.0
 
-	# @threads
-	for i in 1:pop.pN[2]
-		Kr[threadid()] = pop.ety.minRepCoef + pop.ety.pRepFactor[1]*pop.aGty[i].aFitness[2]
-		ipKr[threadid()] = trunc(Int32,Kr[threadid()])
+
+replication!(pop::AbstractPopulation, ancestryVec::Vector{<:Integer}) = _replication!(pop.ety.repType, pop, ancestryVec)
+
+_replication!(repType::ReplicationType, pop, ancestryVec) = _replication!(repType, pop)
+
+function _replication!(repType::FitnessReplication, pop, ancestryVec)
+	Kr = Vector{Float64}(undef,	nthreads())
+	ipKr = Vector{Int32}(undef,	nthreads())
+	G = zeros(Int32, pop.pN[2])
+
+	@threads for i in 1:pop.pN[2]
+		Kr[threadid()] = repType.repFactor * fitness(pop.aGty[i])
+		ipKr[threadid()] = trunc(Int32, Kr[threadid()])
 		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
 
@@ -58,30 +105,60 @@ function replication!(pop::AbstractPopulation, ancestry)
 			pop.pN[1] += 1
 			if pop.pN[1] <= length(pop.aGty)
 				pop.aGty[pop.pN[1]] = copy(pop.aGty[i])
-				ancestry[pop.pN[1]] = i
+				ancestryVec[pop.pN[1]] = i
 			else
-				push!(pop.aGty,copy(pop.aGty[i]))
-				push!(ancestry,i)
+				push!(pop.aGty, copy(pop.aGty[i]))
+				push!(ancestryVec, i)
 			end
 		end
 	end
 
-	return log(pop.pN[1]/pop.pN[2])
+	return log(pop.pN[1] / pop.pN[2])
 end
 
+export replication!
+#---------
+# Mutation
 
 function mutation!(pop::AbstractPopulation)
 	aNmut = Vector{Int32}(undef,pop.pN[1])
-	# @threads
-	for i in 1:pop.pN[1]
-		aNmut[i] = mutation!(pop.aGty[i], pop.ety, pop.env)
-		# aNmut[i] = EvolutionaryDynamics.mutation!(pop.aGty[i], pop.ety, pop.env)
+
+	@threads for i in 1:pop.pN[1]
+		aNmut[i] = mutation!(pop.aGty[i], pop.ety)
+
+		if aNmut[i] > 0
+			fitness!(pop.aGty[i], pop.env)
+		end
 	end
-	return sum(aNmut)/pop.pN[2] 	# normalized number of mutations
-end
+	return sum(aNmut) / pop.pN[2] 	# normalized number of mutations
+end # function mutation!
 
+mutation!(gty::AbstractGenotype, ety::AbstractEvotype) = _mutation!(ety.mutType, gty, ety)
 
-selection!(pop::AbstractPopulation) = _selection(pop.ety.selType, pop)
+_mutation!(::MutationType, gty::AbstractGenotype, ety::AbstractEvotype) = 0
+
+export mutation!
+#----------
+# Selection
+
+selection!(pop::AbstractPopulation) = _selection!(pop.ety.selType, pop)
+
+function _selection!(::NeutralSelection, pop::AbstractPopulation)
+	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
+	# Here, you are copying the references of the genotypes. It is fine, because when you select the new generation,
+	# you are not changing the genotypes themeselves, but simply picking new references.
+
+	aiSelected = rand(THREADRNG[threadid()], 1:pop.pN[1], pop.pN[2])
+
+	for i in 1:pop.pN[2]
+		pop.aGty[i] = aGtyRef[aiSelected[i]]
+	end
+
+	# population size renormalization
+	pop.pN[1] = pop.pN[2]
+
+	return aiSelected[1]
+end # function _selection! NeutralSelection
 
 function _selection!(::FitnessSelection, pop::AbstractPopulation)
 	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
@@ -99,7 +176,25 @@ function _selection!(::FitnessSelection, pop::AbstractPopulation)
 	pop.pN[1] = pop.pN[2]
 
 	return aiSelected[1]
+end # function _selection! FitnessSelection
+
+export selection!
+#--------
+# Fitness
+
+fitness!(gty::AbstractGenotype, env::Tenv) where Tenv <: AbstractEnvironment = _fitness!(IsVaryingEnvironment(Tenv), gty, env)
+
+function fitness!(pop::AbstractPopulation)
+	for i in 1:pop.pN[2]
+		fitness!(pop.aGty[i], pop.env)
+	end
 end
+
+_fitness!(::IsVaryingEnvironment, gty::AbstractGenotype, env::AbstractEnvironment) = error("fitness function undefined")
+
+export fitness!
+#------------
+# Environment
 
 evolveEnvironment!(env::Tenv) where Tenv <: AbstractEnvironment = _evolveEnvironment!(IsVaryingEnvironment(Tenv), env)
 
@@ -117,7 +212,23 @@ function _evolveEnvironment!(::MarkovianEnvironment, env)
 	end
 end
 
-export replication!, mutation!, selection!, _selection!
+export evolveEnvironment!
+#----------
+# utilities
+
+function draw(probVec::Vector{<:Real}, r::Real)
+	if r <= sum(probVec)
+		cumProb, i = probVec[1], 1
+		while cumProb < r
+			cumProb += probVec[i += 1]
+		end
+		return i
+	else
+		return 0
+	end
+end
+
+export draw
 
 end  # module Methods
 
