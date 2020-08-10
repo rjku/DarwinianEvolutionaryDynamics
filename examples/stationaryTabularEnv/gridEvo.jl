@@ -7,11 +7,11 @@
 #       extension: .jl
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.4.1
+#       jupytext_version: 1.5.2
 #   kernelspec:
-#     display_name: Julia (4 threads) 1.4.0
+#     display_name: Julia (4 threads) 1.5.0
 #     language: julia
-#     name: julia-(4-threads)-1.4
+#     name: julia-(4-threads)-1.5
 # ---
 
 # +
@@ -21,7 +21,8 @@ import EvolutionaryDynamics, mUtils, mPlot, mGraphs
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
 # +
-folderName = "/home/rjku/projects/fisheria/examples/stationaryTabularEnv/"
+# folderName = "/home/rjku/projects/fisheria/examples/stationaryTabularEnv/"
+folderName = "/Users/riccardorao/projects/fisheria/examples/stationaryTabularEnv/"
 
 jobID = "gridEvo"
 
@@ -49,9 +50,11 @@ aTraj = Array{EvolutionaryDynamics.TrajectoryData}(undef, length(aSelStrength), 
 @time for (i,β) in enumerate(aSelStrength), (j,μ) in enumerate(aMutFactor)
     grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE, [ μ for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
     ety = EvolutionaryDynamics.TabularEvotype(
-        EvolutionaryDynamics.NeutralReplication(REPCOEF),
+#         EvolutionaryDynamics.NeutralReplication(REPCOEF),
+        EvolutionaryDynamics.WithoutReplication(),
         EvolutionaryDynamics.StandardMutation(),
         EvolutionaryDynamics.FitnessSelection(),
+#         EvolutionaryDynamics.ElitismSelection(),
         grid
     )
     

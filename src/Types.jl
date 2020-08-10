@@ -61,11 +61,12 @@ export MutationType, StandardMutation, RescaledMutation
 abstract type SelectionType end
 struct FitnessSelection <: SelectionType end
 struct NeutralSelection <: SelectionType end
+struct ElitismSelection <: SelectionType end
 
 # default behavior
 SelectionType(::Type) = FitnessSelection()
 
-export SelectionType, FitnessSelection, NeutralSelection
+export SelectionType, FitnessSelection, NeutralSelection, ElitismSelection
 # --------------------
 # Basic Concrete Types
 

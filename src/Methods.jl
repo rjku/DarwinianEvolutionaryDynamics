@@ -145,13 +145,11 @@ selection!(pop::AbstractPopulation) = _selection!(pop.ety.selType, pop)
 
 function _selection!(::NeutralSelection, pop::AbstractPopulation)
 	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
-	# Here, you are copying the references of the genotypes. It is fine, because when you select the new generation,
-	# you are not changing the genotypes themeselves, but simply picking new references.
 
 	aiSelected = rand(THREADRNG[threadid()], 1:pop.pN[1], pop.pN[2])
 
 	for i in 1:pop.pN[2]
-		pop.aGty[i] = aGtyRef[aiSelected[i]]
+		pop.aGty[i] = deepcopy(aGtyRef[aiSelected[i]])
 	end
 
 	# population size renormalization
@@ -162,11 +160,24 @@ end # function _selection! NeutralSelection
 
 function _selection!(::FitnessSelection, pop::AbstractPopulation)
 	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
-	# Here, you are copying the references of the genotypes. It is fine, because when you select the new generation,
-	# you are not changing the genotypes themeselves, but simply picking new references.
 
 	aSelFncVals = [ fitness(pop.aGty[i]) for i in 1:pop.pN[1] ] / sum([ fitness(pop.aGty[i]) for i in 1:pop.pN[1] ])
 	aiSelected = rand(THREADRNG[threadid()], Categorical(aSelFncVals), pop.pN[2])
+
+	for i in 1:pop.pN[2]
+		pop.aGty[i] = deepcopy(aGtyRef[aiSelected[i]])
+	end
+
+	# population size renormalization
+	pop.pN[1] = pop.pN[2]
+
+	return aiSelected[1]
+end # function _selection! FitnessSelection
+
+function _selection!(::ElitismSelection, pop::AbstractPopulation)
+	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
+
+ 	aiSelected = sortperm([ fitness(pop.aGty[i]) for i in 1:pop.pN[1] ], rev=true)
 
 	for i in 1:pop.pN[2]
 		pop.aGty[i] = aGtyRef[aiSelected[i]]
@@ -175,8 +186,8 @@ function _selection!(::FitnessSelection, pop::AbstractPopulation)
 	# population size renormalization
 	pop.pN[1] = pop.pN[2]
 
-	return aiSelected[1]
-end # function _selection! FitnessSelection
+	return aiSelected[1]	# the fittest of fittests
+end # function _selection! ElitismSelection
 
 export selection!
 #--------
