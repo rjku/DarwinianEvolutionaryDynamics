@@ -51,3 +51,22 @@ for i in 1:3, j in 1:3
 end
 
 display( testMat )
+
+testMat = rand(4,4)
+
+testVec = [1,2,3,4]
+
+display( testMat )
+display( testVec .^ 2 )
+display( testMat .* testVec' )
+display( sum( testVec .* testMat, dims=1 ) )
+display( testVec' * testVec )
+display( testVec .* testMat .* testVec' )
+display( sum(testMat, dims=1) )
+display( testVec .* testMat ./ sum( testVec .* testMat, dims=1 ) )
+
+display( [ (testVec[i] - testVec[j])/testVec[i] for i in 1:2, j in 1:4 ] )
+
+display( sum( testVec .* testMat, dims=1 ) )
+
+display( typeof(testVec) )

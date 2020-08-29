@@ -14,7 +14,7 @@ const REPFACTOR, REPCOEF = 0.0, 3.0
 const NENV = 2
 const LF, MF, HF = 1.0, 3.0, 5.0
 
-aMutFactor = [ 0.01, 0.03, 0.1 ]
+aMutFactor = [ 0.02, 0.06, 0.2 ]
 aSelStrength = [ 0.6, 1.0, 1.8 ]
 aEnvTransRate = [ 0.001, 0.01,  0.1 ]
 

@@ -7,11 +7,11 @@
 #       extension: .jl
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.4.1
+#       jupytext_version: 1.5.2
 #   kernelspec:
-#     display_name: Julia (4 threads) 1.4.0
+#     display_name: Julia (4 threads) 1.5.0
 #     language: julia
-#     name: julia-(4-threads)-1.4
+#     name: julia-(4-threads)-1.5
 # ---
 
 # +
@@ -22,14 +22,15 @@ import EvolutionaryDynamics, mUtils, mPlot, mGraphs
 Base.show(io::IO, f::Float64) = @printf(io, "%.2f", f)
 
 # +
-folderName = "/home/rjku/projects/fisheria/examples/varyingTabularEnv/"
+# folderName = "/home/rjku/projects/fisheria/examples/varyingTabularEnv/"
+folderName = "/Users/riccardorao/projects/fisheria/examples/varyingTabularEnv/"
 
 jobID = "varGridEvo"
 
 include(folderName * jobID * "-parameters.jl")
 
 # +
-fMat = mGraphs.matrixForm( mGraphs.VertexWeightedSquareLattice( GRIDSIZE, aFitnessTbl[2] ) )
+fMat = mGraphs.matrixForm( mGraphs.VertexWeightedSquareLattice( GRIDSIZE, aFitnessTbl[1] ) )
 
 imshow(fMat,cmap="cividis"); # origin="lower"
 
