@@ -67,10 +67,12 @@ aTraj = Array{EvolutionaryDynamics.VaryingEnvironmentTrajectoryData}(undef,
 #     end
     aTraj[i,j,k] = traj
 end
-# -
 
+# +
 using JLD, HDF5, DelimitedFiles
+
 aTraj = mUtils.readJLD(folderName * jobID * "_aTraj.jld", "aTraj");
+# -
 
 # ### Analysis
 
@@ -94,9 +96,9 @@ figNum = figure(figsize=(12,12))
 iβ = 3
 β = aSelStrength[iβ]
 
-# for (iμ,μ) in enumerate(aMutFactor), (iw,w) in enumerate(aEnvTransRate)
+for (iμ,μ) in enumerate(aMutFactor), (iw,w) in enumerate(aEnvTransRate)
 # for (iμ,μ) in zip(2:3,aMutFactor[2:3]), (iw,w) in zip(1:2,aEnvTransRate[1:2])
-for (iμ,μ) in zip(2:2,aMutFactor[2:2]), (iw,w) in zip(2:2,aEnvTransRate[2:2])
+# for (iμ,μ) in zip(2:2,aMutFactor[2:2]), (iw,w) in zip(2:2,aEnvTransRate[2:2])
 
     grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE, [ μ for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
     Pgty = [ sum( aTraj[iβ,iμ,iw].jointProb[g,:,:,:] ) for g in 1:size(aTraj[iβ,iμ,iw].jointProb)[1] ] /
@@ -108,7 +110,7 @@ for (iμ,μ) in zip(2:2,aMutFactor[2:2]), (iw,w) in zip(2:2,aEnvTransRate[2:2])
     ax = figNum.add_subplot(3,3,iμ + 3*(3-iw))
 
     imshow(log.(pMat), cmap="inferno", vmax=-3, vmin=-12);
-#     title("β = $(β), μ = $(μ), τ = $(1.0/w)");
+    title("β = $(β), μ = $(μ), τ = $(1.0/w)");
 
 #     eMin = -13
 #     for (i,e) in enumerate(pNicMat)
@@ -135,6 +137,7 @@ using LinearAlgebra
 
 iβ = 3
 β = aSelStrength[iβ]
+n = 10
 
 # array of fitness values
 af = [ exp( β * aFitnessTbl[1][g] ) for g in 1:DIMGSPACE ]
@@ -142,22 +145,24 @@ af = [ exp( β * aFitnessTbl[1][g] ) for g in 1:DIMGSPACE ]
 # construction of the transition matrix for genotype dynamics as function of the mutation probability
 gridu(μ) = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE, [ μ for i in 1:2GRIDSIZE*(GRIDSIZE-1) ])
 mMut(μ) = Array(mGraphs.transitionMatrix(gridu(μ))) .+ Diagonal([ 1.0 for i in 1:DIMGSPACE ])
-mW(μ) = af .* mMut(μ) ./ sum(af .* mMut(μ), dims=1)
+mW(μ, n=1) = ( ( af .* mMut(μ) )^n ) ./ sum( ( af .* mMut(μ) )^n, dims=1)
 
 # relaxation time scales as function of the mutation probability
-τ1(μ) = - 1.0 / log( eigvals( mW(μ) )[end-1] )
-τ2(μ) = - 1.0 / log( eigvals( mW(μ) )[end-2] )
-τ3(μ) = - 1.0 / log( eigvals( mW(μ) )[end-3] )
-τ4(μ) = - 1.0 / log( eigvals( mW(μ) )[end-4] ) ;
+τ1(μ, n=1) = - 1.0 / log( eigvals( mW(μ, n) )[end-1] )
+τ2(μ, n=1) = - 1.0 / log( eigvals( mW(μ, n) )[end-2] )
+τ3(μ, n=1) = - 1.0 / log( eigvals( mW(μ, n) )[end-3] )
+τ4(μ, n=1) = - 1.0 / log( eigvals( mW(μ, n) )[end-4] ) ;
 
 # +
 eμIterator = -2.0:0.1:-1.0
 
+nExpansion = 70
+
 aμ = [ 2.0 * 10.0^eμ for eμ in eμIterator ]
 aτ1 = [ τ1(μ) for μ in aμ ]
-aτ2 = [ τ2(μ) for μ in aμ ]
-aτ3 = [ τ3(μ) for μ in aμ ]
-aτ4 = [ τ4(μ) for μ in aμ ] ;
+aτ2 = [ τ1(μ, 2) for μ in aμ ]
+aτ3 = [ τ1(μ, 50) for μ in aμ ] * 50
+aτ4 = [ τ1(μ, nExpansion) for μ in aμ ] * nExpansion ;
 
 # +
 plot( aμ, aτ1 )
@@ -168,18 +173,61 @@ plot( aμ, aτ4 )
 xscale("log")
 yscale("log")
 
+ylim()
+
 xlabel("mutation rate, μ")
 ylabel("relaxation time-scale, τ")
 
 for (μ, w) in zip(aMutFactor, aEnvTransRate)
     axvline( x=μ, color="black", linewidth=1, linestyle="--" )
-    axhline( y=1.0/w, xmin=aμ[1], color="black", linewidth=1, linestyle="--" )
+    axhline( y=1.0/w, xmin=aμ[1], color="black", linewidth=1, linestyle="-." )
 end
+
+
+# +
+eμIterator = -2.0:0.1:-1.0
+aμ = [ 2.0 * 10.0^eμ for eμ in eμIterator ]
+
+nIterator = 1:40
+
+τMat = [ real(τ1(μ, n)) for μ in aμ, n in nIterator ]
+
+figure(figsize=(12,12))
+imshow( log10.(τMat), cmap="inferno") #, vmax=-3, vmin=-12)
+
+xlabel("order, n")
+ylabel("log mutation rate, log μ")
+
+Base.show(io::IO, f::Float64) = @printf(io, "%.4f", f)
+xticks( nIterator[1]-1:nIterator[end]-1, nIterator )
+yticks( 0:length(eμIterator)-1, aμ )
+
+colorbar(fraction=0.015) ;
+
+# +
+μ = 0.1
+nIterator = 1:40
+
+τVec = [ real(τ1(μ, n)) for n in nIterator ]
+τVecScaled = [ real(τ1(μ, n)) * n for n in nIterator ]
+
+figure(figsize=(12,7))
+plot( collect(nIterator), (τVec) )
+plot( collect(nIterator), (τVecScaled) )
+
+xlabel("order, n")
+ylabel("time scale, τ")
+
+# Base.show(io::IO, f::Float64) = @printf(io, "%.4f", f)
+# xticks( nIterator[1]-1:nIterator[end]-1, nIterator )
+# yticks( 0:length(eμIterator)-1, aμ )
+
+;
 # -
 
 # The conclusion that I would draw is the following.
 # The second and faster time scales better capture the relaxation time scale of the population.
-# When the environmental change time scale is faster than the population relaxation one (horizontal dashed lines below the orange, green, and red lines) then "evolvability" is possible.
+# When the environmental change time scale (horizontal dot-dashed line) is faster than the population relaxation one (below the orange, green, and red lines) then "evolvability" is possible.
 
 # ### Information Theoretical Analysis
 

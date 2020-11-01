@@ -171,7 +171,7 @@ function _mutation!(repType::FitnessReplication, gty::AbstractGenotype, ety::Tab
 	end
 end
 
-#---
+#------
 
 function evoStep!(pop::AbstractPopulation)
 	replication!(pop)

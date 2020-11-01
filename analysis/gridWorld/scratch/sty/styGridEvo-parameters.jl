@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # evolution and population constants
-const NGENRELAX, NGENSAMPLE = Int32(10^4), Int32(10^3)
-const NPOP = Int32(10^2)
-const NSAMPLES = 10^5
+const NGENRELAX, NGENSAMPLE = Int32(3*10^5), Int32(10^4)
+const NPOP = Int32(100)
+const NSAMPLES = 10^4
 
 
 # genotypic variables
@@ -14,7 +14,7 @@ const BLOCKSIZE = GRIDSIZE÷3
 const REPFACTOR, REPCOEF = 0.0, 4.0
 const LF, MF, HF = 1.0, 3.0, 5.0
 
-aMutFactor = [ 2.5 * 10.0^(i) for i in -3:0.1:- 1 ]
+aMutFactor = [ 2.5 * 10.0^(i) for i in -4:0.1:-3.1 ]
 # aMutFactor = [ 0.0025, 0.025, 0.25 ]
 aSelStrength = [ 0.6, 1.0, 1.8 ]
 # aMutFactor = [ 0.03 ]

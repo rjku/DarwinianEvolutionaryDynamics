@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 using ClusterManagers, Distributed
 using BenchmarkTools, JLD, HDF5, DelimitedFiles
@@ -33,7 +34,7 @@ Base.run(`cp styGridEvo-parameters.jl $parametersFileName`)
 # print code version for the records
 Base.run(`git --git-dir=/home/riccardorao/projects/fisheria/.git log --format=format:%h -1`)
 
-#############################################################################
+# ############################################################################
 
 include("styGridEvo-parameters.jl")
 
@@ -62,7 +63,7 @@ jldopen(folderName * jobTag * "_aTraj.jld", "w") do file
 	write(file, "aTraj", aTraj)
 end
 
-#############################################################################
+# ############################################################################
 
 # possibly copy slurmLog.out somewhere else
 # slurmLogFileName = jobTag * "-slurmLog.out"
