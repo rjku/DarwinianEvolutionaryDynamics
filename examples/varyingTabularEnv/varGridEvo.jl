@@ -61,7 +61,7 @@ aTraj = Array{EvolutionaryDynamics.VaryingEnvironmentTrajectoryData}(undef,
 #     traj = @distributed (+) for i in 1:NSAMPLES
     traj = EvolutionaryDynamics.generateTabularSystemsTrajectories(
             ety=ety, aFitnessTbl=aFitnessTbl, selCoef=β, transMtx=transMtx, Npop=NPOP,
-            NgenRelax=convert(Int32,RELNGENRELAX/w), NgenSample=convert(Int64,RELNGENSAMPLE/w)
+            nGenRelax=convert(Int32,RELNGENRELAX/w), NgenSample=convert(Int64,RELNGENSAMPLE/w)
         )
 #     end
     aTraj[i,j,k] = traj

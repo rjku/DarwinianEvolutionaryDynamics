@@ -79,7 +79,7 @@ function _replication!(repType::NeutralReplication, pop)
 		end
 	end
 
-	return log(pop.pN[1]/pop.pN[2])
+	return log(pop.pN[1] / pop.pN[2])
 end # function _replication! NeutralReplication
 
 _replication!(repType::WithoutReplication, pop) = 0.0

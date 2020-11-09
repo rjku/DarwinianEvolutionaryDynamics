@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 using ClusterManagers, Distributed
 using BenchmarkTools, JLD, HDF5, DelimitedFiles
@@ -14,7 +15,6 @@ addprocs_slurm(np, t="48:00:00")
 println("\n")
 
 # spawn fisheria project path push at all workers
-
 push!(LOAD_PATH, "/home/riccardorao/projects/julietta")
 push!(LOAD_PATH, "/home/riccardorao/projects/fisheria/src")
 
@@ -28,38 +28,32 @@ end
 
 # copy parameter files for the records
 parametersFileName = folderName * jobTag * "-parameters.jl"
-Base.run(`cp varGridEvo-parameters.jl $parametersFileName`)
+Base.run(`cp styGridEvo-parameters.jl $parametersFileName`)
 
 # print code version for the records
 Base.run(`git --git-dir=/home/riccardorao/projects/fisheria/.git log --format=format:%h -1`)
 
-#############################################################################
+# ############################################################################
 
-include("varGridEvo-parameters.jl")
+include("styGridEvo-parameters.jl")
 
-aTraj = Array{EvolutionaryDynamics.VaryingEnvironmentTrajectoryData}(undef,
-    length(aSelStrength), length(aMutFactor), length(aEnvTransRate))
+aTraj = Array{EvolutionaryDynamics.TrajectoryData}(undef, length(aSelStrength), length(aMutFactor))
 
-@time for (i,β) in enumerate(aSelStrength), (j,μ) in enumerate(aMutFactor), (k,w) in enumerate(aEnvTransRate)
-
+@time for (i,β) in enumerate(aSelStrength), (j,μ) in enumerate(aMutFactor)
     grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE, [ μ for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
     ety = EvolutionaryDynamics.TabularEvotype(
-        # EvolutionaryDynamics.NeutralReplication(REPCOEF),
         EvolutionaryDynamics.WithoutReplication(),
         EvolutionaryDynamics.StandardMutation(),
         EvolutionaryDynamics.FitnessSelection(),
         grid
     )
-    transMtx = [ [ 1.0 - w, w ] [ w, 1.0 - w ] ]
 
-	traj = @distributed (+) for s in 1:NSAMPLES
-    	EvolutionaryDynamics.generateTabularSystemsTrajectories(
-            ety=ety, aFitnessTbl=aFitnessTbl, selCoef=β, transMtx=transMtx, Npop=NPOP,
-            # nGenRelax=convert(Int32,RELNGENRELAX/w), NgenSample=convert(Int64,RELNGENSAMPLE/w)
-            nGenRelax=convert(Int32,RELNGENRELAX/w), NgenSample=NGENSAMPLE
+	traj = @distributed (+) for i in 1:NSAMPLES
+    	EvolutionaryDynamics.generateTabularSystemsPopulationTrajectories(
+			ety=ety, fitnessTbl=fTbl, selCoef=β, Npop=NPOP, nGenRelax=NGENRELAX, nSamples=NSAMPLESPERTRJ
         )
 	end
-    aTraj[i,j,k] = traj
+    aTraj[i,j] = traj
 end
 
 jldopen(folderName * jobTag * "_aTraj.jld", "w") do file
@@ -67,7 +61,7 @@ jldopen(folderName * jobTag * "_aTraj.jld", "w") do file
 	write(file, "aTraj", aTraj)
 end
 
-#############################################################################
+# ############################################################################
 
 # possibly copy slurmLog.out somewhere else
 # slurmLogFileName = jobTag * "-slurmLog.out"

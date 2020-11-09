@@ -12,6 +12,7 @@ import ..Methods: mutation!, _mutation!, _fitness!
 using mUtils, mGraphs
 
 import Statistics: mean
+import Distributions: Categorical
 
 using Base.Threads, Random
 import Future
@@ -68,7 +69,7 @@ export scaledLogFitness
 # -------
 
 struct TrajectoryData <: AbstractEvolutionData
-	NgenRelax::Int32
+	nGenRelax::Int32
 	NgenSample::Int64
 
 	avePerformance::Array{Float64,1}
@@ -77,12 +78,33 @@ struct TrajectoryData <: AbstractEvolutionData
 
 	jointProb::Array{Int64,2}
 end
-	TrajectoryData(NgenRelax::Integer, NgenSample::Integer, cardG::Integer) = TrajectoryData( Int32(NgenRelax), Int64(NgenSample),
+	TrajectoryData(nGenRelax::Integer, NgenSample::Integer, cardG::Integer) = TrajectoryData( Int32(nGenRelax), Int64(NgenSample),
 		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), zeros(Int64,cardG,cardG)
 	)
 
+struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvolutionData
+	nGenRelax::Int32
+	nSamples::Int32
+	nGenSamples::Int64
+
+	avePerformance::Vector{Float64}
+	growthFactor::Vector{Float64}
+	mutationFactor::Vector{Float64}
+
+	aPopCmp::Vector{TaG}
+end
+	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
+		nGenSamples = Int64(nGenRelax * nSamples)
+
+		return PopulationTrajectoryData(
+			convert(Int32, nGenRelax), convert(Int32, nSamples), nGenSamples,
+			Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples),
+			Vector{Vector{gtyType}}(undef, nSamples)
+		)
+	end
+
 struct VaryingEnvironmentTrajectoryData <: AbstractEvolutionData
-	NgenRelax::Int32
+	nGenRelax::Int32
 	NgenSample::Int64
 
 	avePerformance::Array{Float64,1}
@@ -92,25 +114,39 @@ struct VaryingEnvironmentTrajectoryData <: AbstractEvolutionData
 
 	jointProb::Array{Int64,4}
 end
-	VaryingEnvironmentTrajectoryData(NgenRelax::Integer,NgenSample::Integer,cardG::Integer,cardE::Integer) = VaryingEnvironmentTrajectoryData( Int32(NgenRelax), Int64(NgenSample),
-		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Int32}(undef,NgenSample), zeros(Int64,cardG,cardE,cardG,cardE)
+	VaryingEnvironmentTrajectoryData(nGenRelax::Integer,NgenSample::Integer,cardG::Integer,cardE::Integer) = VaryingEnvironmentTrajectoryData(
+		Int32(nGenRelax), Int64(NgenSample),
+		Array{Float64}(undef, NgenSample), Array{Float64}(undef, NgenSample), Array{Float64}(undef, NgenSample),
+		Array{Int32}(undef, NgenSample), zeros(Int64, cardG, cardE, cardG, cardE)
 	)
 
 import Base: +
 
-+(trj1::TrajectoryData,trj2::TrajectoryData) = TrajectoryData(
-	trj1.NgenRelax, trj1.NgenSample + trj2.NgenSample, trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor, trj1.jointProb .+ trj2.jointProb
++(trj1::TrajectoryData, trj2::TrajectoryData) = TrajectoryData(
+	trj1.nGenRelax, trj1.NgenSample + trj2.NgenSample,
+	trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor,
+	trj1.jointProb .+ trj2.jointProb
 )
 
-+(trj1::VaryingEnvironmentTrajectoryData,trj2::VaryingEnvironmentTrajectoryData) = VaryingEnvironmentTrajectoryData(
-	trj1.NgenRelax, trj1.NgenSample + trj2.NgenSample, trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor, trj1.envState, trj1.jointProb .+ trj2.jointProb
++(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData) = PopulationTrajectoryData(
+	trj1.nGenRelax, trj1.nSamples + trj2.nSamples, trj1.nGenSamples + trj2.nGenSamples,
+	trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor,
+	vcat( trj1.aPopCmp, trj2.aPopCmp )
 )
 
-export TrajectoryData, VaryingEnvironmentTrajectoryData
++(trj1::VaryingEnvironmentTrajectoryData, trj2::VaryingEnvironmentTrajectoryData) = VaryingEnvironmentTrajectoryData(
+	trj1.nGenRelax, trj1.NgenSample + trj2.NgenSample,
+	trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor, trj1.envState,
+	trj1.jointProb .+ trj2.jointProb
+)
+
+export TrajectoryData, PopulationTrajectoryData, VaryingEnvironmentTrajectoryData
 # =========
 
 
-function init_Population(N::Int32, ety::Tety, env::Tenv, aGty::Vector{TG}) where { Tety<:AbstractEvotype, Tenv<:AbstractTabularEnvironment, TG<:AbstractGenotype }
+function init_Population(N::Int32, ety::Tety, env::Tenv, aGty::Vector{TG}) where {
+		Tety<:AbstractEvotype, Tenv<:AbstractTabularEnvironment, TG<:AbstractGenotype
+	}
 	N <= length(aGty) || throw(DimensionMismatch("Inconsistent Dimensions: N must be greater than or equal to length(aGty)"))
 
 	@threads for i in 1:N fitness!(aGty[i], env) end
@@ -127,8 +163,8 @@ function _fitness!(::MarkovianEnvironment, gty::AbstractGenotype, env::AbstractT
 	gty.aFitness .= [ exp(env.selCoef * env.fitnessTbl[envState(env)][gty.genome[1]]), env.fitnessTbl[envState(env)][gty.genome[1]] ]
 end
 
-#----------
-#  MUTATION
+#---------
+# MUTATION
 
 function _mutation!(::StandardMutation, gty::AbstractGenotype, ety::TabularEvotype)
 	aAdjV, aMutProb = neighbors(ety.graph, gty.genome[1])
@@ -174,21 +210,23 @@ end
 #------
 
 function evoStep!(pop::AbstractPopulation)
-	replication!(pop)
-	mutation!(pop)
+	gf = replication!(pop)
+	nMut = mutation!(pop)
 	selection!(pop)
+
+	return gf, nMut
 end
 
 function evoStep!(pop::AbstractPopulation, ancestryVec::Vector{<:Integer})
 	gf = replication!(pop, ancestryVec)
-	Nmut = mutation!(pop)
+	nMut = mutation!(pop)
 	iGtySelected = selection!(pop)
 
-	return gf, Nmut, ancestryVec[iGtySelected]
+	return gf, nMut, ancestryVec[iGtySelected]
 end
 
 function evolve!(pop::AbstractPopulation, traj::TrajectoryData)
-	for gen in 1:traj.NgenRelax
+	for gen in 1:traj.nGenRelax
 		evoStep!(pop)
 	end
 
@@ -204,8 +242,19 @@ function evolve!(pop::AbstractPopulation, traj::TrajectoryData)
 	end
 end
 
+function evolve!(pop::AbstractPopulation, traj::PopulationTrajectoryData)
+	for iSample in 0:traj.nSamples-1
+		for gen in 1:traj.nGenRelax
+			traj.growthFactor[gen + iSample * traj.nGenRelax], traj.mutationFactor[gen + iSample * traj.nGenRelax] = evoStep!(pop)
+			traj.avePerformance[gen + iSample * traj.nGenRelax] = mean([ scaledLogFitness(pop.aGty[i]) for i in 1:pop.pN[2] ])
+		end
+
+		traj.aPopCmp[iSample + 1] = deepcopy(pop.aGty)
+	end
+end
+
 function evolve!(pop::AbstractPopulation, traj::VaryingEnvironmentTrajectoryData)
-	for gen in 1:traj.NgenRelax
+	for gen in 1:traj.nGenRelax
 		if evolveEnvironment!(pop.env)
 			fitness!(pop)
 		end
@@ -231,34 +280,53 @@ function evolve!(pop::AbstractPopulation, traj::VaryingEnvironmentTrajectoryData
 end
 
 function generateTabularSystemsTrajectories(
-		ety::AbstractTabularEvotype, fitnessTbl::AbstractArray{<:Real}, selCoef::Real, Npop::Integer, NgenRelax::Integer, NgenSample::Integer
+		ety::AbstractTabularEvotype, fitnessTbl::AbstractArray{<:Real}, selCoef::Real, Npop::Integer, nGenRelax::Integer, NgenSample::Integer
 	)
 
 	env = TabularEnvironment(fitnessTbl, selCoef)
-	aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv))]) for i in 1:Npop ];
+	aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv))]) for i in 1:Npop ]
 	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
 
-	trajData = TrajectoryData(NgenRelax, NgenSample, ety.graph.Nv)
+	trajData = TrajectoryData(nGenRelax, NgenSample, ety.graph.Nv)
+	evolve!(pop, trajData)
+
+	return trajData
+end
+
+function generateTabularSystemsPopulationTrajectories(;
+		ety::AbstractTabularEvotype, fitnessTbl::AbstractVector{<:Real}, selCoef::Real, Npop::Integer, nGenRelax::Integer, nSamples::Integer
+	)
+
+	env = TabularEnvironment(fitnessTbl, selCoef)
+
+	# genotypes are generated according to fitness
+	aSelectionProb = fitnessTbl ./ sum(fitnessTbl)
+	aGty = [ Genotype( [ convert( Int32, rand(THREADRNG[threadid()], Categorical(aSelectionProb)) ) ] ) for i in 1:Npop ]
+
+	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
+
+	trajData = PopulationTrajectoryData(nGenRelax, nSamples, Genotype)
 	evolve!(pop, trajData)
 
 	return trajData
 end
 
 function generateTabularSystemsTrajectories(;
-		ety::AbstractTabularEvotype, aFitnessTbl::Vector{<:AbstractArray{<:Real}}, selCoef::Real, transMtx::Matrix{<:Real}, Npop::Integer, NgenRelax::Integer, NgenSample::Integer
+		ety::AbstractTabularEvotype, aFitnessTbl::Vector{<:AbstractArray{<:Real}}, selCoef::Real, transMtx::Matrix{<:Real},
+		Npop::Integer, nGenRelax::Integer, NgenSample::Integer
 	)
 
 	env = VaryingTabularEnvironment(aFitnessTbl, selCoef, transMtx)
 	aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv ))]) for i in 1:Npop ];
 	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
 
-	trajData = VaryingEnvironmentTrajectoryData(NgenRelax, NgenSample, ety.graph.Nv, length(aFitnessTbl))
+	trajData = VaryingEnvironmentTrajectoryData(nGenRelax, NgenSample, ety.graph.Nv, length(aFitnessTbl))
 	evolve!(pop, trajData)
 
 	return trajData
 end
 
-export generateTabularSystemsTrajectories
+export generateTabularSystemsTrajectories, generateTabularSystemsPopulationTrajectories
 
 #-----
 
@@ -303,7 +371,7 @@ function gmsEvoStep!(pop::Population{<:AbstractEvotype,<:VaryingTabularEnvironme
 end
 
 function evolveOld!(pop::AbstractPopulation, traj::VaryingEnvironmentTrajectoryData)
-	for gen in 1:traj.NgenRelax
+	for gen in 1:traj.nGenRelax
 		gmsEvoStep!(pop)
 	end
 
@@ -322,7 +390,8 @@ function evolveOld!(pop::AbstractPopulation, traj::VaryingEnvironmentTrajectoryD
 end
 
 function generateVaryingTabularSystemsITrajectories(
-		repFactor, minRepCoef, mutCoef, λM, graph::AbstractGraph, aFtb, repStrength, selStrength, transitionMatrix, Npop::Integer, NgenRelax::Integer, NgenSample::Integer
+		repFactor, minRepCoef, mutCoef, λM, graph::AbstractGraph, aFtb, repStrength, selStrength, transitionMatrix,
+		Npop::Integer, nGenRelax::Integer, NgenSample::Integer
 	)
 
 	ety = VaryingTabularEvotypeI([Float64(repFactor)], Float64(minRepCoef), Float64(mutCoef), Float64(λM), graph)
@@ -331,7 +400,7 @@ function generateVaryingTabularSystemsITrajectories(
 	pop = init_Population( Int32(Npop), ety, env, aGty )
 
 	#  assuming that you deal with a square grid
-	traj = VaryingEnvironmentTrajectoryData( NgenRelax, NgenSample, 5graph.Nv, length(aFtb) )
+	traj = VaryingEnvironmentTrajectoryData( nGenRelax, NgenSample, 5graph.Nv, length(aFtb) )
 	evolveOld!(pop, traj)
 
 	return traj

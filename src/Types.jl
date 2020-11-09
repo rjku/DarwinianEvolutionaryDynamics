@@ -84,7 +84,7 @@ end
 
 	Base.copy(gty::Genotype) = Genotype(deepcopy(gty.genome), deepcopy(gty.aFitness))
 
-struct Population{Tety<:AbstractEvotype,Tenv<:AbstractEnvironment,TaG<:Vector{<:AbstractGenotype}} <: AbstractPopulation
+struct Population{Tety<:AbstractEvotype, Tenv<:AbstractEnvironment, TaG<:Vector{<:AbstractGenotype}} <: AbstractPopulation
 	pN::Vector{Int32}		# population number: effective population, fixed population value
 	ety::Tety
 	env::Tenv

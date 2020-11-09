@@ -1,17 +1,18 @@
 
-N = 3
-p = rand( [1,2], N )
-b = [ rand(4) for i in 1:N ]
+using Revise
+import EvolutionaryDynamics
 
-display( p )
-display( b )
-display( b ./ p )
 
-using EvolutionaryDynamics
+ciccio = EvolutionaryDynamics.TabularSystems.PopulationTrajectoryData(10, 10, EvolutionaryDynamics.Types.Genotype)
+ciccio2 = EvolutionaryDynamics.TabularSystems.PopulationTrajectoryData(10, 5, EvolutionaryDynamics.Types.Genotype)
 
-aGty = [ TabularGenotype( rand(1:10,2) ) for i in 1:3]
+ciccioSum = ciccio + ciccio2
+
+aGty = [ Genotype( rand(1:10,2) ) for i in 1:3 ]
 aGtyCopy = copy( aGty )
 aGtyCopy2 = deepcopy( aGty )
+
+testVec = convert(Vector{Int32},rand(1:10, 2))
 
 aGty[1] = aGtyCopy[2]
 

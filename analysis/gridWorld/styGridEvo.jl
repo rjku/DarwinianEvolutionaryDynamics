@@ -85,6 +85,7 @@ aTraj = Array{EvolutionaryDynamics.TrajectoryData}(undef, length(aSelStrength), 
 end
 
 # +
+# phase diagram results
 using JLD, HDF5, DelimitedFiles
 
 aTraj = mUtils.readJLD(folderName * jobID * "_aTraj.jld", "aTraj");
@@ -100,7 +101,7 @@ end
 # -
 
 # # Analysis
-
+#
 # ### Checks about relaxation
 
 # +
