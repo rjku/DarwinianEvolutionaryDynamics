@@ -28,16 +28,16 @@ end
 
 # copy parameter files for the records
 parametersFileName = folderName * jobTag * "-parameters.jl"
-Base.run(`cp styGridEvo-parameters.jl $parametersFileName`)
+Base.run(`cp rbsGridEvo-parameters.jl $parametersFileName`)
 
 # print code version for the records
 Base.run(`git --git-dir=/home/riccardorao/projects/fisheria/.git log --format=format:%h -1`)
 
 # ############################################################################
 
-include("styGridEvo-parameters.jl")
+include("rbsGridEvo-parameters.jl")
 
-aTraj = Array{EvolutionaryDynamics.TrajectoryData}(undef, length(aSelStrength), length(aMutFactor))
+aTraj = Array{EvolutionaryDynamics.PopulationTrajectoryData}(undef, length(aSelStrength), length(aMutFactor))
 
 @time for (i,β) in enumerate(aSelStrength), (j,μ) in enumerate(aMutFactor)
     grid = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE, [ μ for i in 1:2GRIDSIZE*(GRIDSIZE-1) ]);
@@ -50,7 +50,7 @@ aTraj = Array{EvolutionaryDynamics.TrajectoryData}(undef, length(aSelStrength), 
 
 	traj = @distributed (+) for i in 1:NSAMPLES
     	EvolutionaryDynamics.generateTabularSystemsPopulationTrajectories(
-			ety=ety, fitnessTbl=fTbl, selCoef=β, Npop=NPOP, nGenRelax=NGENRELAX, nSamples=NSAMPLESPERTRJ
+			ety=ety, fitnessTbl=fTbl, selCoef=β, Npop=NPOP, nGenRelax=trunc(Int32,DIMGSPACE/μ), nSamples=NSAMPLESPERTRAJ
         )
 	end
     aTraj[i,j] = traj

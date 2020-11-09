@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 # evolution and population constants
-const NGENRELAX, NSAMPLESPERTRJ = 100, 100
-const NSAMPLES = 100
-const NPOP = Int32(100)
+const NGENRELAX = 1
+const CGENRELAX = 1
+const NSAMPLESPERTRAJ = 2
+const NSAMPLES = 10
+const NPOP = 100
 
 
 # genotypic variables
@@ -15,7 +17,7 @@ const REPFACTOR, REPCOEF = 0.0, 4.0
 const LF, MF, HF = 1.0, 3.0, 5.0
 
 # +
-aMutFactor = [ 2.5 * 10.0^(i) for i in -4:0.2:-1 ]
+aMutFactor = [ 2.5 * 10.0^(i) for i in -4:1:-1 ]
 # aMutFactor = [ 0.0025, 0.025, 0.25 ]
 # aMutFactor = [ 0.03 ]
 

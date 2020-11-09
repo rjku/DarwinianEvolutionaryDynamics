@@ -82,8 +82,7 @@ end
 		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), zeros(Int64,cardG,cardG)
 	)
 
-# struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvolutionData
-struct PopulationTrajectoryData <: AbstractEvolutionData
+struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvolutionData
 	nGenRelax::Int32
 	nSamples::Int32
 	nGenSamples::Int64
@@ -95,8 +94,7 @@ struct PopulationTrajectoryData <: AbstractEvolutionData
 	# aPopCmp::Vector{TaG}
 	aPopCmp::Vector{Vector{Int32}}
 end
-	# function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
-	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer)
+	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
 		nGenSamples = Int64(nGenRelax * nSamples)
 
 		return PopulationTrajectoryData(
@@ -304,7 +302,7 @@ function generateTabularSystemsPopulationTrajectories(;
 
 	env = TabularEnvironment(fitnessTbl, selCoef)
 
-	# genotypes are generated according to fitness
+	# initial genotypes are sampled according to fitness
 	aSelectionProb = fitnessTbl ./ sum(fitnessTbl)
 	aGty = [ Genotype( [ convert( Int32, rand(THREADRNG[threadid()], Categorical(aSelectionProb)) ) ] ) for i in 1:Npop ]
 

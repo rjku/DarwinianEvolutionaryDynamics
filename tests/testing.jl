@@ -112,3 +112,13 @@ ex = :( !testVecBool[1] | !testVecBool[3] )
 exWrong = :( !testVecBool[rand(1:5)] | y )
 display( dump(ex) )
 display( eval(ex) )
+
+
+testVec = collect(1:10)
+
+testCopyVec = [ testVec[i] for i in eachindex(testVec) ]
+
+testVec[2] = 100
+
+display( testVec )
+display( testCopyVec )

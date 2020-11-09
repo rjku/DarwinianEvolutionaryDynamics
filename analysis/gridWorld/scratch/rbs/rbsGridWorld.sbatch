@@ -2,15 +2,15 @@
 
 #SBATCH --output=rbsGridEvo-%j-slurmLog.out
 
-#SBATCH --time=24:00:00
-#SBATCH --ntasks=1000
+#SBATCH --time=4:00:00
+#SBATCH --ntasks=10
 
 module load anaconda3
 module load julia
 
 folderName="/scratch/riccardorao/gridWorld/rbs/"
 jobTag="rbsGridEvo"
-julia generateStyTraj.jl $SLURM_NTASKS $folderName $SLURM_JOB_ID $jobTag
+julia generateRbsTraj.jl $SLURM_NTASKS $folderName $SLURM_JOB_ID $jobTag
 
 # ############################
 
