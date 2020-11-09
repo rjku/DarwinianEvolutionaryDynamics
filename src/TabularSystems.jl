@@ -82,7 +82,8 @@ end
 		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), zeros(Int64,cardG,cardG)
 	)
 
-struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvolutionData
+# struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvolutionData
+struct PopulationTrajectoryData <: AbstractEvolutionData
 	nGenRelax::Int32
 	nSamples::Int32
 	nGenSamples::Int64
@@ -91,15 +92,18 @@ struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvol
 	growthFactor::Vector{Float64}
 	mutationFactor::Vector{Float64}
 
-	aPopCmp::Vector{TaG}
+	# aPopCmp::Vector{TaG}
+	aPopCmp::Vector{Vector{Int32}}
 end
-	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
+	# function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
+	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer)
 		nGenSamples = Int64(nGenRelax * nSamples)
 
 		return PopulationTrajectoryData(
 			convert(Int32, nGenRelax), convert(Int32, nSamples), nGenSamples,
 			Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples),
-			Vector{Vector{gtyType}}(undef, nSamples)
+			# Vector{Vector{gtyType}}(undef, nSamples)
+			Vector{Vector{Int32}}(undef, nSamples)
 		)
 	end
 
@@ -249,7 +253,8 @@ function evolve!(pop::AbstractPopulation, traj::PopulationTrajectoryData)
 			traj.avePerformance[gen + iSample * traj.nGenRelax] = mean([ scaledLogFitness(pop.aGty[i]) for i in 1:pop.pN[2] ])
 		end
 
-		traj.aPopCmp[iSample + 1] = deepcopy(pop.aGty)
+		# traj.aPopCmp[iSample + 1] = deepcopy(pop.aGty[1:pop.pN[2]])
+		traj.aPopCmp[iSample + 1] = [ pop.aGty[i].genome[1] for i in 1:pop.pN[2] ]
 	end
 end
 
