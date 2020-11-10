@@ -82,7 +82,7 @@ end
 		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), zeros(Int64,cardG,cardG)
 	)
 
-struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvolutionData
+struct PopulationTrajectoryData <: AbstractEvolutionData
 	nGenRelax::Int32
 	nSamples::Int32
 	nGenSamples::Int64
@@ -91,16 +91,14 @@ struct PopulationTrajectoryData{TaG<:Vector{<:AbstractGenotype}} <: AbstractEvol
 	growthFactor::Vector{Float64}
 	mutationFactor::Vector{Float64}
 
-	# aPopCmp::Vector{TaG}
 	aPopCmp::Vector{Vector{Int32}}
 end
-	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
+	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer)
 		nGenSamples = Int64(nGenRelax * nSamples)
 
-		return PopulationTrajectoryData{Vector{gtyType}}(
+		return PopulationTrajectoryData(
 			convert(Int32, nGenRelax), convert(Int32, nSamples), nGenSamples,
 			Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples),
-			# Vector{Vector{gtyType}}(undef, nSamples)
 			Vector{Vector{Int32}}(undef, nSamples)
 		)
 	end
@@ -130,7 +128,7 @@ import Base: +
 	trj1.jointProb .+ trj2.jointProb
 )
 
-+(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData) = typeof(trj1)(
++(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData) = PopulationTrajectoryData(
 	trj1.nGenRelax, trj1.nSamples + trj2.nSamples, trj1.nGenSamples + trj2.nGenSamples,
 	trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor,
 	vcat( trj1.aPopCmp, trj2.aPopCmp )
@@ -308,7 +306,7 @@ function generateTabularSystemsPopulationTrajectories(;
 
 	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
 
-	trajData = PopulationTrajectoryData(nGenRelax, nSamples, Genotype)
+	trajData = PopulationTrajectoryData(nGenRelax, nSamples)
 	evolve!(pop, trajData)
 
 	return trajData

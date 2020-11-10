@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # evolution and population constants
-const NGENRELAX = 1
+const NGENRELAX = 1000
 const CGENRELAX = 1
 const NSAMPLESPERTRAJ = 2
 const NSAMPLES = 10
