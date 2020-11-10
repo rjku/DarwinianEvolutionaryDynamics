@@ -130,7 +130,7 @@ import Base: +
 	trj1.jointProb .+ trj2.jointProb
 )
 
-+(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData) = PopulationTrajectoryData(
++(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData) = typeof(trj1)(
 	trj1.nGenRelax, trj1.nSamples + trj2.nSamples, trj1.nGenSamples + trj2.nGenSamples,
 	trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor,
 	vcat( trj1.aPopCmp, trj2.aPopCmp )
