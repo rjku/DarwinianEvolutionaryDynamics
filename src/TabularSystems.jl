@@ -97,7 +97,7 @@ end
 	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer, gtyType::Type{<:AbstractGenotype})
 		nGenSamples = Int64(nGenRelax * nSamples)
 
-		return PopulationTrajectoryData(
+		return PopulationTrajectoryData{Vector{gtyType}}(
 			convert(Int32, nGenRelax), convert(Int32, nSamples), nGenSamples,
 			Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples), Vector{Float64}(undef, nGenSamples),
 			# Vector{Vector{gtyType}}(undef, nSamples)
