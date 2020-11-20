@@ -169,7 +169,8 @@ end
 function _mutation!(::StandardMutation, gty::AbstractGenotype, ety::TabularEvotype)
 	aAdjV, aMutProb = neighbors(ety.graph, gty.genome[1])
 
-	i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	# i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	i = draw(aMutProb, rand())
 
 	if i > 0
 		gty.genome[1] = aAdjV[i]
@@ -185,7 +186,8 @@ function _mutation!(repType::NeutralReplication, gty::AbstractGenotype, ety::Tab
 	aAdjV, aMutProb = neighbors(ety.graph, gty.genome[1])
 	aMutProb .= aMutProb / ( 1.0 + ety.repType.repCoef )
 
-	i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	# i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	i = draw(aMutProb, rand())
 	if i > 0
 		gty.genome[1] = aAdjV[i]
 		return Int32(1)
@@ -198,7 +200,8 @@ function _mutation!(repType::FitnessReplication, gty::AbstractGenotype, ety::Tab
 	aAdjV, aMutProb = neighbors(ety.graph, gty.genome[1])
 	aMutProb .= aMutProb / ( 1.0 + ety.repType.repFactor * fitness(gty) )
 
-	i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	# i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	i = draw(aMutProb, rand())
 	if i > 0
 		gty.genome[1] = aAdjV[i]
 		return Int32(1)
@@ -285,7 +288,8 @@ function generateTabularSystemsTrajectories(
 	)
 
 	env = TabularEnvironment(fitnessTbl, selCoef)
-	aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv))]) for i in 1:Npop ]
+	# aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv))]) for i in 1:Npop ]
+	aGty = [ Genotype([convert(Int32, rand(1:ety.graph.Nv))]) for i in 1:Npop ]
 	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
 
 	trajData = TrajectoryData(nGenRelax, NgenSample, ety.graph.Nv)
@@ -302,7 +306,8 @@ function generateTabularSystemsPopulationTrajectories(;
 
 	# initial genotypes are sampled according to fitness
 	aSelectionProb = fitnessTbl ./ sum(fitnessTbl)
-	aGty = [ Genotype( [ convert( Int32, rand(THREADRNG[threadid()], Categorical(aSelectionProb)) ) ] ) for i in 1:Npop ]
+	# aGty = [ Genotype( [ convert( Int32, rand(THREADRNG[threadid()], Categorical(aSelectionProb)) ) ] ) for i in 1:Npop ]
+	aGty = [ Genotype( [ convert( Int32, rand(Categorical(aSelectionProb)) ) ] ) for i in 1:Npop ]
 
 	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
 
@@ -318,7 +323,8 @@ function generateTabularSystemsTrajectories(;
 	)
 
 	env = VaryingTabularEnvironment(aFitnessTbl, selCoef, transMtx)
-	aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv ))]) for i in 1:Npop ];
+	# aGty = [ Genotype([convert(Int32, rand(THREADRNG[threadid()], 1:ety.graph.Nv ))]) for i in 1:Npop ];
+	aGty = [ Genotype([convert(Int32, rand(1:ety.graph.Nv ))]) for i in 1:Npop ];
 	pop = init_Population(convert(Int32, Npop), ety, env, aGty)
 
 	trajData = VaryingEnvironmentTrajectoryData(nGenRelax, NgenSample, ety.graph.Nv, length(aFitnessTbl))
@@ -339,8 +345,8 @@ function mutation!(gty::AbstractGenotype, ety::VaryingTabularEvotypeI, env::Abst
 	Nmut::Int32 = 0
 
 	# site mutation
-	r::Float64 = rand(THREADRNG[threadid()])
-	i = draw(aMutProb,r)
+	# i = draw(aMutProb, rand(THREADRNG[threadid()]))
+	i = draw(aMutProb, rand())
 	if i > 0
 		gty.genome[1] = aAdjV[i]
 		fitness!(gty,env)
@@ -348,9 +354,10 @@ function mutation!(gty::AbstractGenotype, ety::VaryingTabularEvotypeI, env::Abst
 	end
 
 	# mutation boost direction
-	r = rand(THREADRNG[threadid()])
-	if r <= ety.mutCoef / sqrtρhat
-		gty.genome[2] = typeof(gty.genome[2])(rand(THREADRNG[threadid()], 0:4))		# <--- you are assuming the square grid!
+	# if rand(THREADRNG[threadid()]) <= ety.mutCoef / sqrtρhat
+	if rand() <= ety.mutCoef / sqrtρhat
+		# gty.genome[2] = typeof(gty.genome[2])(rand(THREADRNG[threadid()],0:4))		# <--- you are assuming the square grid!
+		gty.genome[2] = typeof(gty.genome[2])(rand(0:4))								# <--- you are assuming the square grid!
 		Nmut += 1
 	end
 
@@ -397,7 +404,8 @@ function generateVaryingTabularSystemsITrajectories(
 
 	ety = VaryingTabularEvotypeI([Float64(repFactor)], Float64(minRepCoef), Float64(mutCoef), Float64(λM), graph)
 	env = VaryingTabularEnvironment(aFtb, [repStrength,selStrength], transitionMatrix)
-	aGty = [ EvolutionaryDynamics.Genotype( Int32[rand(THREADRNG[threadid()], 1:graph.Nv ), 0] ) for i in 1:Npop ];
+	# aGty = [ EvolutionaryDynamics.Genotype( Int32[rand(THREADRNG[threadid()], 1:graph.Nv ), 0] ) for i in 1:Npop ];
+	aGty = [ EvolutionaryDynamics.Genotype( Int32[rand(1:graph.Nv ), 0] ) for i in 1:Npop ];
 	pop = init_Population( Int32(Npop), ety, env, aGty )
 
 	#  assuming that you deal with a square grid

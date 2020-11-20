@@ -50,7 +50,8 @@ function _replication!(repType::FitnessReplication, pop::AbstractPopulation)
 	@threads for i in 1:pop.pN[2]
 		Kr[threadid()] = repType.repFactor * fitness(pop.aGty[i])
 		ipKr[threadid()] = trunc(Int32, Kr[threadid()])
-		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
+		# G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
+		G[i] = rand() < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
 
 	for i in 1:pop.pN[2]
@@ -97,7 +98,8 @@ function _replication!(repType::FitnessReplication, pop, ancestryVec)
 	@threads for i in 1:pop.pN[2]
 		Kr[threadid()] = repType.repFactor * fitness(pop.aGty[i])
 		ipKr[threadid()] = trunc(Int32, Kr[threadid()])
-		G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
+		# G[i] = rand(THREADRNG[threadid()]) < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
+		G[i] = rand() < Kr[threadid()] - ipKr[threadid()] ? ipKr[threadid()] + 1 : ipKr[threadid()]
 	end
 
 	for i in 1:pop.pN[2]
@@ -146,7 +148,8 @@ selection!(pop::AbstractPopulation) = _selection!(pop.ety.selType, pop)
 function _selection!(::NeutralSelection, pop::AbstractPopulation)
 	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
 
-	aiSelected = rand(THREADRNG[threadid()], 1:pop.pN[1], pop.pN[2])
+	# aiSelected = rand(THREADRNG[threadid()], 1:pop.pN[1], pop.pN[2])
+	aiSelected = rand(1:pop.pN[1], pop.pN[2])
 
 	for i in 1:pop.pN[2]
 		pop.aGty[i] = deepcopy(aGtyRef[aiSelected[i]])
@@ -162,7 +165,8 @@ function _selection!(::FitnessSelection, pop::AbstractPopulation)
 	aGtyRef::Vector{AbstractGenotype} = copy(pop.aGty)
 
 	aSelFncVals = [ fitness(pop.aGty[i]) for i in 1:pop.pN[1] ] / sum([ fitness(pop.aGty[i]) for i in 1:pop.pN[1] ])
-	aiSelected = rand(THREADRNG[threadid()], Categorical(aSelFncVals), pop.pN[2])
+	# aiSelected = rand(THREADRNG[threadid()], Categorical(aSelFncVals), pop.pN[2])
+	aiSelected = rand(Categorical(aSelFncVals), pop.pN[2])
 
 	for i in 1:pop.pN[2]
 		pop.aGty[i] = deepcopy(aGtyRef[aiSelected[i]])
@@ -213,7 +217,8 @@ _evolveEnvironment!(::IsVaryingEnvironment, env) = error("environmental evolutio
 
 function _evolveEnvironment!(::MarkovianEnvironment, env)
 	d = Categorical( env.transMtx[:, envState(env)] )
-	i = rand(THREADRNG[threadid()], d)
+	# i = rand(THREADRNG[threadid()], d)
+	i = rand(d)
 
 	if envState(env) != i
 		env.envState[1] = i
