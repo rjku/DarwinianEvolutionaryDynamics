@@ -50,7 +50,7 @@ aTraj = Array{EvolutionaryDynamics.PopulationTrajectoryData}(undef, length(aSelS
 
 	traj = @distributed (+) for i in 1:NSAMPLES
     	EvolutionaryDynamics.generateTabularSystemsPopulationTrajectories(
-			ety=ety, fitnessTbl=fTbl, selCoef=β, Npop=NPOP, nGenRelax=trunc(Int32,DIMGSPACE/μ), nSamples=NSAMPLESPERTRAJ
+			ety=ety, fitnessTbl=fTbl, selCoef=β, Npop=NPOP, nGenRelax=trunc(Int32,CGENRELAX*DIMGSPACE/μ), nSamples=NSAMPLESPERTRAJ
         )
 	end
     aTraj[i,j] = traj

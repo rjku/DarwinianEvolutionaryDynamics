@@ -2,8 +2,8 @@
 
 #SBATCH --output=rbsGridEvo-%j-slurmLog.out
 
-#SBATCH --time=4:00:00
-#SBATCH --ntasks=10
+#SBATCH --time=12:00:00
+#SBATCH --ntasks=200
 
 module load anaconda3
 module load julia
