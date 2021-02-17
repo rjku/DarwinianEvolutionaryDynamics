@@ -82,6 +82,22 @@ end
 		Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), Array{Float64}(undef,NgenSample), zeros(Int64,cardG,cardG)
 	)
 
+"""
+	PopulationTrajectoryData <: AbstractEvolutionData
+
+	type encoding population (rather than genotype) trajectory data
+
+	# arguments
+	- nGenRelax::Int32						number of generations for the relaxation period
+	- nSamples::Int32						number of samples
+	- nGenSamples::Int64					number of generations between one sampling and the next
+
+	- avePerformance::Vector{Float64}		average fitness along the trajectory
+	- growthFactor::Vector{Float64}			growth coefficients along the trajectory
+	- mutationFactor::Vector{Float64}		mutation coefficients along the trajectory
+
+	- aPopCmp::Vector{Vector{Int32}}		sampled population compositions
+"""
 struct PopulationTrajectoryData <: AbstractEvolutionData
 	nGenRelax::Int32
 	nSamples::Int32
@@ -93,6 +109,18 @@ struct PopulationTrajectoryData <: AbstractEvolutionData
 
 	aPopCmp::Vector{Vector{Int32}}
 end
+	"""
+		PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer)
+
+		initialization of a type PopulationTrajectoryData
+
+		# arguments
+		- nGenRelax::Int32						number of generations for the relaxation period
+		- nSamples::Int32						number of samples
+
+		# notes
+		- nGenSamples::Int64					set to nGenRelax * nSamples ~ 1 sample after any relaxation period
+	"""
 	function PopulationTrajectoryData(nGenRelax::Integer, nSamples::Integer)
 		nGenSamples = Int64(nGenRelax * nSamples)
 
@@ -128,6 +156,13 @@ import Base: +
 	trj1.jointProb .+ trj2.jointProb
 )
 
+"""
+	+(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData)
+
+	merges two PopulationTrajectoryData types together
+
+
+"""
 +(trj1::PopulationTrajectoryData, trj2::PopulationTrajectoryData) = PopulationTrajectoryData(
 	trj1.nGenRelax, trj1.nSamples + trj2.nSamples, trj1.nGenSamples + trj2.nGenSamples,
 	trj1.avePerformance, trj1.growthFactor, trj1.mutationFactor,
@@ -298,6 +333,19 @@ function generateTabularSystemsTrajectories(
 	return trajData
 end
 
+"""
+	generateTabularSystemsPopulationTrajectories(; <keywords arguments>)
+
+	generates a PopulationTrajectoryData type
+
+	# arguments
+	- ety::AbstractTabularEvotype				evotype
+	- fitnessTbl::AbstractVector{<:Real}		fitness value table for each genotype
+	- selCoef::Real								selection strength coefficient
+	- Npop::Integer								population size
+	- nGenRelax::Integer						number of generations for the relaxation period
+	- nSamples::Integer							number of samples
+"""
 function generateTabularSystemsPopulationTrajectories(;
 		ety::AbstractTabularEvotype, fitnessTbl::AbstractVector{<:Real}, selCoef::Real, Npop::Integer, nGenRelax::Integer, nSamples::Integer
 	)

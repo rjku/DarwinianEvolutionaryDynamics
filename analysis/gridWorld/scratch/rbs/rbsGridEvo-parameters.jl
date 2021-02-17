@@ -3,7 +3,7 @@
 const NGENRELAX = 1
 const NSAMPLESPERTRAJ = 2
 const NSAMPLES = 200
-const NPOP = 100
+const NPOP = 70
 
 
 # genotypic variables
@@ -18,7 +18,7 @@ const REPFACTOR, REPCOEF = 0.0, 4.0
 const LF, MF, HF = 1.0, 3.0, 5.0
 
 # +
-aMutFactor = [ 2.5 * 10.0^(i) for i in -4:0.2:-1 ]
+aMutFactor = [ 2.0 * 10.0^(i) for i in -4.0:0.2:-1.0 ]
 # aMutFactor = [ 0.0025, 0.025, 0.25 ]
 # aMutFactor = [ 0.03 ]
 

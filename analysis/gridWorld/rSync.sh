@@ -3,7 +3,6 @@
 clear
 
 HOSTNAME="mbp142.wireless.ias.edu"
-#HOSTNAME="mbp142.local"
 
 options="--delete -azvP --rsh=ssh"
 locale="/scratch/$USER/gridWorld"

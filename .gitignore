@@ -1,4 +1,8 @@
 
+*.out
+*.jld
+*parameters.jl
+
 *~
 *.swp
 *.DS_Store

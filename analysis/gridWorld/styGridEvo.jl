@@ -899,21 +899,28 @@ savefig("sensitivity.pdf", bbox_inches="tight")
 # -
 # # Miscellanea
 
-function squareGridPlot(L; l=1, fsize=7, s0=30, colormap="cividis")
+# +
+# fit2clr = Dict( 1.0 => "tab:blue", 5.0 => "tab:red" )
+fit2clr = Dict( 1.0 => "tab:grey", 5.0 => "tab:orange" )
+fit2shp = Dict( 1.0 => "s", 5.0 => "s" )
+fit2siz = Dict( 1.0 => 130, 5.0 => 230 )
+
+function squareGridPlot(L; l=1, fsize=7, s0=210, colormap="cividis")
     
     V = [ [ (i-1)÷L + 1, (i-1)%L + 1 ] for i in 1:L^2 ]
 
     fig = figure(figsize=(fsize,fsize))
     for (i,v) in enumerate(V)
-        scatter([v[1]], [v[2]], s=s0, cmap=colormap, c=10, alpha=0.5, marker="s")
+        scatter([v[1]], [v[2]], s=fit2siz[fTbl[i]], cmap=colormap,
+            c=fit2clr[fTbl[i]], alpha=1.0, marker=fit2shp[fTbl[i]])
     end
-
+    
+    ylim([12.6,0.4])
     xticks( prepend!(collect(l:l:L),1) )
-    yticks( prepend!(collect(l:l:L),1), append!(collect(L:-l:l),1) )
+    yticks( prepend!(collect(l:l:L),1) ) #, append!(collect(L:-l:l),1) )
+#     colorbar(fraction=0.02)
 end
 
-# +
-squareGridPlot(GRIDSIZE, l=4, fsize=4) 
-
-savefig("genotypicGrid.pdf", bbox_inches="tight")
-;
+squareGridPlot(GRIDSIZE, l=4, fsize=4);
+# savefig("typGrid.pdf", bbox_inches="tight")
+# savefig("typGridTalk.pdf", bbox_inches="tight")
