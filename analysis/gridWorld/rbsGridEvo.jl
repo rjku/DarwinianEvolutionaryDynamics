@@ -18,11 +18,12 @@ versioninfo()
 
 # +
 using Revise
-# using ProgressMeter, BenchmarkTools
-using JLD, HDF5 #, DelimitedFiles
+using JLD, HDF5
 using PyPlot, Printf
-using Dierckx, LsqFit, ForwardDiff
-using DataFrames, GLM
+using Statistics
+# using ProgressMeter, BenchmarkTools
+# using Dierckx, LsqFit, ForwardDiff
+# using DataFrames, GLM
 
 import EvolutionaryDynamics, mUtils, mPlot, mGraphs
 
@@ -83,10 +84,10 @@ aaMutFactor = [aMutFactor];
     aTraj[1][i,j] = traj
 end
 
-jldopen(folderName * aJobID[1] * "_aTraj.jld", "w") do file
-    addrequire(file, EvolutionaryDynamics)
-    write(file, "aTraj", aTraj[1])
-end
+# jldopen(folderName * aJobID[1] * "_aTraj.jld", "w") do file
+#     addrequire(file, EvolutionaryDynamics)
+#     write(file, "aTraj", aTraj[1])
+# end
 # -
 
 # ## Data Retrival
@@ -120,13 +121,11 @@ x = rand(1:length(aJobID)-1)
 y = rand( filter( e -> e != x, 1:length(aJobID)-1) )
 
 println( "? are (x, y) wrongly equal: (", x, ", ", y, ") -> ", aTraj[x][1].aPopCmp == aTraj[y][1].aPopCmp)
-# -
-
-?EvolutionaryDynamics.TabularSystems.PopulationTrajectoryData
 
 # +
 # using DelimitedFiles
 
+# writing delimitedFiles
 # for k in eachindex(aMutFactor)
 #     open("rbsPopTrajData/rbsGridEvo_aPopCmp_" * string(k) * ".dat", "w") do io
 #         writedlm(io, [ aTraj[end][k].aPopCmp[j][i]
@@ -136,6 +135,7 @@ println( "? are (x, y) wrongly equal: (", x, ", ", y, ") -> ", aTraj[x][1].aPopC
 #     end;
 # end
 
+# reading delimitedFiles
 # readdlm("rbsPopTrajData/rbsGridEvo_aPopCmp_1.dat", '\t', Int, '\n')
 # -
 
@@ -172,7 +172,7 @@ tight_layout();
 # ## Sensitivity
 
 # +
-using LinearAlgebra, Statistics
+using LinearAlgebra
 
 iβ = 1
 β = aSelStrength[iβ]

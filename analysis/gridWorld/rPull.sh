@@ -2,7 +2,6 @@
 
 clear
 
-#HOSTNAME="mbp142.wireless.ias.edu"
 HOSTNAME="selene.sns.ias.edu"
 
 options="--delete -azvP --rsh=ssh"

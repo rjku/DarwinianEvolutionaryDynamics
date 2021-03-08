@@ -2,11 +2,12 @@
 
 clear
 
-HOSTNAME="mbp142.wireless.ias.edu"
+HOSTNAME="selene.sns.ias.edu"
 
 options="--delete -azvP --rsh=ssh"
-locale="/scratch/$USER/gridWorld"
-remoto="$USER@$HOSTNAME:/Users/$USER/projects/fisheria/analysis/gridWorld/scratch"
+locale="/Users/$USER/projects/fisheria/analysis/gridWorld/scratch"
+remoto="$USER@$HOSTNAME:/scratch/$USER/gridWorld"
+
 
 echo "Syncronizing <$remoto> with <$locale>."
 echo "Syncronization simulation outcome:"
