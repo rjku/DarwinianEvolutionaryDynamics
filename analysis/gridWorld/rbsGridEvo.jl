@@ -9,9 +9,9 @@
 #       format_version: '1.5'
 #       jupytext_version: 1.5.2
 #   kernelspec:
-#     display_name: Julia 1.5.3
+#     display_name: Julia 1.6.1
 #     language: julia
-#     name: julia-1.5
+#     name: julia-1.6
 # ---
 
 versioninfo()
@@ -332,6 +332,8 @@ end
 # -
 
 # #### Interpolation Approach
+
+using Dierckx
 
 # +
 iμMin, iμMax, iμΔ = 2, length(aaMutFactor[end]), 1 # <--- 2, 0, 1
@@ -684,7 +686,7 @@ axin.tick_params(axis="x", labelsize=8)
 axin.tick_params(axis="y", labelsize=8)
 
 tight_layout();
-savefig("snt" * string(NPOP) * "mt.pdf", bbox_inches="tight")
+# savefig("snt" * string(NPOP) * "mt.pdf", bbox_inches="tight")
 # -
 # #### Multiple Population Size Analysis
 
@@ -855,12 +857,31 @@ aAveFInf = [ aveFInf(μ) for μ in aμ ]
 ;
 # -
 
-# ### Diversity
+# ### Expected Growth Rate and Diversity
 
 # +
-# sensitivity functions
+function fPopVal( vf::AbstractVector, aGenome )
+    F = 0.0
+
+    for genome in aGenome
+        F += vf[genome]
+    end
+
+    return F
+end
+
+function fPopStat( vf::AbstractVector,  aaGenome )
+    af = Vector{Float64}(undef, length(aaGenome))
+
+    for (iSample, aGenome) in enumerate(aaGenome)
+        af[iSample] = log( fPopVal( vf, aGenome ) ) / log( maximum(vf) * length(aGenome) )
+    end
+
+    return mean(af), var(af)
+end
+
+# +
 function dPopVal( Gsize::Integer, aGenome )
-    
     θpop = zeros(Int8, Gsize)
 
     for genome in aGenome
@@ -885,18 +906,62 @@ end
 aExpectedDiversityPop    = Vector{Vector{Float64}}(undef, length(aJobID))
 aVarianceDiversityPop    = Vector{Vector{Float64}}(undef, length(aJobID))
 
+aExpectedReproductionPop    = Vector{Vector{Float64}}(undef, length(aJobID))
+aVarianceReproductionPop    = Vector{Vector{Float64}}(undef, length(aJobID))
+
 for iID in eachindex(aJobID)
     aExpectedDiversityPop[iID]    = Vector{Float64}(undef, length(aaMutFactor[iID]))
     aVarianceDiversityPop[iID]    = Vector{Float64}(undef, length(aaMutFactor[iID]))
 
+    aExpectedReproductionPop[iID]    = Vector{Float64}(undef, length(aaMutFactor[iID]))
+    aVarianceReproductionPop[iID]    = Vector{Float64}(undef, length(aaMutFactor[iID]))
+
     for (iμ, μ) in enumerate(aaMutFactor[iID])
         aExpectedDiversityPop[iID][iμ], aVarianceDiversityPop[iID][iμ] =
             dPopStat( DIMGSPACE, aTraj[iID][iβ,iμ].aPopCmp )
+        
+        aExpectedReproductionPop[iID][iμ], aVarianceReproductionPop[iID][iμ] =
+            fPopStat( vf, aTraj[iID][iβ,iμ].aPopCmp )
     end
 end
+# -
+
+aExpectedReproductionPop[end:end][1];
 
 # +
-# title("Average Population Diversity");
+using LinearAlgebra
+
+iβ = 1
+β = aSelStrength[iβ]
+
+# vector of fitness values and matrix of fitness changes
+vf = [ exp( β * fTbl[g] ) for g in 1:DIMGSPACE ]
+mSnt = [ ( vf[go] - vf[gt] ) / vf[go] for gt in 1:DIMGSPACE, go in 1:DIMGSPACE ]
+
+# construction of the mutation probability matrix
+fnGrid(μ) = mGraphs.EdgeWeightedSquareLattice(GRIDSIZE, [ μ for i in 1:2GRIDSIZE*(GRIDSIZE-1) ])
+πμ(μ) = ( Array(mGraphs.transitionMatrix(fnGrid(μ))) .* ( 1.0 .- Diagonal( ones(Float64, DIMGSPACE) ) ) )
+
+vSnt(μ) = sum( mSnt .* πμ(μ), dims=1 )
+
+# vectors of fitness values after mutations
+vfπμ(μ) = πμ(μ)' * vf
+
+subplots(1, 2, figsize=(12.0, 4.5))
+
+subplot(122); title("(b) Population Reproduction Rate");
+for (iID, dty) in enumerate(aExpectedReproductionPop[end:end])
+    errorbar( 4aaMutFactor[end][rngPlt], (dty[rngPlt]), #sqrt.(aVarianceDiversityPop[end][rngPlt]),
+        fmt="o", fillstyle="none" )
+end
+axvline(x=1/NPOP, linestyle="dotted", color="tab:grey")
+xscale("log")
+xlabel("variation probability, μ")
+# yscale("log")
+ylim([0.6,1.1])
+ylabel("rescaled log cumulative growth, ⟨lnFₙ⟩/ln(Nf*)")
+
+subplot(121); title("(a) Population Diversity");
 for (iID, dty) in enumerate(aExpectedDiversityPop[end:end])
     errorbar( 4aaMutFactor[end][rngPlt], dty[rngPlt], #sqrt.(aVarianceDiversityPop[end][rngPlt]),
         fmt="o", fillstyle="none" )
@@ -908,4 +973,7 @@ ylabel("median of no. of distinct types, median{d}")
 ylim([0,14])
 
 savefig("dty" * string(NPOP) * ".pdf", bbox_inches="tight")
+# savefig("further" * string(NPOP) * ".pdf", bbox_inches="tight")
 ;
+# -
+
