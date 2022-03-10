@@ -903,7 +903,7 @@ savefig("sensitivity.pdf", bbox_inches="tight")
 # fit2clr = Dict( 1.0 => "tab:blue", 5.0 => "tab:red" )
 fit2clr = Dict( 1.0 => "tab:grey", 5.0 => "tab:orange" )
 fit2shp = Dict( 1.0 => "s", 5.0 => "s" )
-fit2siz = Dict( 1.0 => 130, 5.0 => 230 )
+fit2siz = Dict( 1.0 => 100, 5.0 => 200 )
 
 function squareGridPlot(L; l=1, fsize=7, s0=210, colormap="cividis")
     
@@ -922,5 +922,8 @@ function squareGridPlot(L; l=1, fsize=7, s0=210, colormap="cividis")
 end
 
 squareGridPlot(GRIDSIZE, l=4, fsize=4);
-# savefig("typGrid.pdf", bbox_inches="tight")
+savefig("/Users/riccardorao/delocalized/florentia/Finchley/typGrid.svg", bbox_inches="tight")
 # savefig("typGridTalk.pdf", bbox_inches="tight")
+# -
+
+
